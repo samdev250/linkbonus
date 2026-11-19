@@ -17,7 +17,7 @@ app.use(express.json({ limit: '32kb' }));
 const url = process.env.SUPABASE_URL;
 const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 const authClient = url && anonKey ? createClient(url, anonKey, { auth: { persistSession: false } }) : null;
-type SessionLocals = { user: { id: string; email?: string }; db: SupabaseClient };
+type SessionLocals = { user: { id: string; email?: string; country?: string }; db: SupabaseClient };
 type SessionResponse = Response<unknown, SessionLocals>;
 const fail = (res: Response, error: unknown) => {
   console.error('API request failed:', error);
@@ -28,6 +28,31 @@ const amount = (value: bigint) => {
   const sign = value < 0n ? '-' : '';
   const abs = value < 0n ? -value : value;
   return `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`;
+};
+const currencyForCountry = (country?: string) => {
+  const code = (country ?? '').trim().toUpperCase();
+  if (code === 'RW' || code === 'RWANDA') return 'RWF';
+  if (code === 'BI' || code === 'BURUNDI') return 'BIF';
+  const currencies: Record<string, string> = {
+    US: 'USD', CA: 'CAD', BM: 'BMD', GL: 'DKK', MX: 'MXN', BZ: 'BZD', CR: 'CRC', SV: 'USD', GT: 'GTQ', HN: 'HNL', NI: 'NIO', PA: 'PAB',
+    AR: 'ARS', BO: 'BOB', BR: 'BRL', CL: 'CLP', CO: 'COP', EC: 'USD', GY: 'GYD', PY: 'PYG', PE: 'PEN', SR: 'SRD', UY: 'UYU', VE: 'VES',
+    GB: 'GBP', IE: 'EUR', AT: 'EUR', BE: 'EUR', CY: 'EUR', DE: 'EUR', EE: 'EUR', ES: 'EUR', FI: 'EUR', FR: 'EUR', GR: 'EUR', HR: 'EUR',
+    IT: 'EUR', LT: 'EUR', LU: 'EUR', LV: 'EUR', MC: 'EUR', ME: 'EUR', MT: 'EUR', NL: 'EUR', PT: 'EUR', SI: 'EUR', SK: 'EUR', VA: 'EUR',
+    CH: 'CHF', LI: 'CHF', DK: 'DKK', FO: 'DKK', NO: 'NOK', SJ: 'NOK', SE: 'SEK', IS: 'ISK', PL: 'PLN', CZ: 'CZK', HU: 'HUF', RO: 'RON',
+    BG: 'BGN', AL: 'ALL', BA: 'BAM', BY: 'BYN', MD: 'MDL', MK: 'MKD', RS: 'RSD', RU: 'RUB', UA: 'UAH', TR: 'TRY', GE: 'GEL', AM: 'AMD',
+    KE: 'KES', UG: 'UGX', TZ: 'TZS', NG: 'NGN', GH: 'GHS', ZA: 'ZAR', ZM: 'ZMW', MW: 'MWK', ET: 'ETB', EG: 'EGP', MA: 'MAD',
+    KM: 'KMF', DJ: 'DJF', ER: 'ERN', MG: 'MGA', MU: 'MUR', MZ: 'MZN', SC: 'SCR', SO: 'SOS', SS: 'SSP', SD: 'SDG',
+    BJ: 'XOF', BF: 'XOF', CI: 'XOF', GN: 'GNF', GW: 'XOF', ML: 'XOF', NE: 'XOF', SN: 'XOF', TG: 'XOF', CV: 'CVE', GM: 'GMD', LR: 'LRD', SL: 'SLE',
+    AO: 'AOA', CM: 'XAF', CF: 'XAF', TD: 'XAF', CG: 'XAF', CD: 'CDF', GQ: 'XAF', GA: 'XAF', ST: 'STN', DZ: 'DZD', LY: 'LYD', TN: 'TND',
+    BW: 'BWP', LS: 'LSL', NA: 'NAD', SZ: 'SZL', ZW: 'ZWG',
+    AU: 'AUD', NZ: 'NZD', FJ: 'FJD', PG: 'PGK', SB: 'SBD', VU: 'VUV', WS: 'WST', TO: 'TOP', TV: 'AUD', KI: 'AUD', NR: 'AUD',
+    CN: 'CNY', HK: 'HKD', JP: 'JPY', MO: 'MOP', MN: 'MNT', KR: 'KRW', TW: 'TWD', SG: 'SGD', MY: 'MYR', ID: 'IDR', PH: 'PHP', TH: 'THB',
+    VN: 'VND', KH: 'KHR', LA: 'LAK', MM: 'MMK', BN: 'BND', IN: 'INR', PK: 'PKR', BD: 'BDT', LK: 'LKR', NP: 'NPR', AF: 'AFN', MV: 'MVR',
+    KZ: 'KZT', KG: 'KGS', TJ: 'TJS', TM: 'TMT', UZ: 'UZS', IL: 'ILS', JO: 'JOD', LB: 'LBP', SY: 'SYP', IQ: 'IQD', IR: 'IRR', SA: 'SAR',
+    AE: 'AED', QA: 'QAR', BH: 'BHD', KW: 'KWD', OM: 'OMR', YE: 'YER', AZ: 'AZN',
+    BB: 'BBD', JM: 'JMD', TT: 'TTD', DO: 'DOP', HT: 'HTG', CU: 'CUP', BS: 'BSD', AW: 'AWG', BQ: 'USD', KY: 'KYD', GD: 'XCD',
+  };
+  return currencies[code] ?? 'USD';
 };
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', database: authClient ? 'configured' : 'not_configured', mode: 'test' }));
@@ -43,7 +68,7 @@ app.use('/api', async (req: Request, res: SessionResponse, next: NextFunction) =
   try {
     const { data, error } = await authClient.auth.getUser(token);
     if (error || !data.user) return res.status(401).json({ error: 'Invalid session' });
-    res.locals.user = { id: data.user.id, email: data.user.email };
+    res.locals.user = { id: data.user.id, email: data.user.email, country: String(data.user.user_metadata?.country ?? '') };
     res.locals.db = createClient(url, anonKey, {
       auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${token}` } },
     });
@@ -58,7 +83,7 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
   try {
     const db = res.locals.db;
     const [profile, accounts, tx, investments, staking, commissions] = await Promise.all([
-      db.from('profiles').select('full_name,country,phone,verification_status,referral_code').eq('id', res.locals.user.id).maybeSingle(),
+      db.from('profiles').select('full_name,verification_status,referral_code').eq('id', res.locals.user.id).maybeSingle(),
       db.from('asset_accounts').select('id,asset_code').eq('owner_id', res.locals.user.id),
       db.from('ledger_transactions').select('id,kind,status,amount_minor,asset_code,description,created_at').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false }).limit(5),
       db.from('investments').select('principal_minor,asset_code,status').eq('owner_id', res.locals.user.id).in('status', ['active','pending']),
@@ -72,9 +97,10 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     if (entries.error) throw entries.error;
     const balances = new Map<string, bigint>();
     for (const row of entries.data ?? []) balances.set(row.account_id, (balances.get(row.account_id) ?? 0n) + minor(row.amount_minor));
-    const availableUsd = accountRows.filter(row => row.asset_code === 'USD').reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
-    const usdInvested = (investments.data ?? []).filter(row => row.asset_code === 'USD').reduce((sum, row) => sum + minor(row.principal_minor), 0n);
-    const usdStaked = (staking.data ?? []).filter(row => row.asset_code === 'USD').reduce((sum, row) => sum + minor(row.principal_minor), 0n);
+    const currency = currencyForCountry(res.locals.user.country);
+    const availableBalance = accountRows.filter(row => row.asset_code === currency).reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
+    const invested = (investments.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
+    const staked = (staking.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
     const credited = (commissions.data ?? []).filter(row => row.status === 'credited').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const pending = (commissions.data ?? []).filter(row => row.status === 'pending').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const transactions = (tx.data ?? []).map(row => ({
@@ -84,10 +110,10 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     }));
     const name = profile.data?.full_name || res.locals.user.email?.split('@')[0] || 'Member';
     return res.json({ data: {
-      name, email: res.locals.user.email ?? '', currency: 'USD',
-      available: amount(availableUsd), invested: amount(usdInvested), staked: amount(usdStaked),
+      name, email: res.locals.user.email ?? '', currency,
+      available: amount(availableBalance), invested: amount(invested), staked: amount(staked),
       referrals: amount(credited), pendingReferrals: amount(pending),
-      portfolio: amount(availableUsd + usdInvested + usdStaked), transactions,
+      portfolio: amount(availableBalance + invested + staked), transactions,
       profile: profile.data ?? null, verifiedPerformance: false,
     } });
   } catch (error) { return fail(res, error); }
