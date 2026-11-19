@@ -1,0 +1,8 @@
+node_modules/
+dist/
+frontend/dist/
+backend/.env
+.env
+*.env.local
+npm-debug.log*
+*.tsbuildinfo
