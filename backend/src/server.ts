@@ -78,7 +78,7 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     const credited = (commissions.data ?? []).filter(row => row.status === 'credited').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const pending = (commissions.data ?? []).filter(row => row.status === 'pending').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const transactions = (tx.data ?? []).map(row => ({
-      id: row.id, label: row.kind.replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase()),
+      id: row.id, label: row.kind.replaceAll('_', ' ').replace(/\b\w/g, (char: string) => char.toUpperCase()),
       detail: row.description ?? row.asset_code, amount: `${row.kind === 'deposit' || row.kind === 'referral_commission' ? '+' : '−'} ${row.asset_code} ${amount(minor(row.amount_minor))}`,
       date: row.created_at, status: row.status,
     }));
