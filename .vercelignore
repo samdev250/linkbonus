@@ -1,6 +1,4 @@
 .git
-
-**/dist
 frontend/.env.local
 backend/.env
 docs/
