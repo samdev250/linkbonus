@@ -8,6 +8,7 @@ const app = express();
 app.use(helmet());
 const allowedOrigins = (process.env.FRONTEND_ORIGINS ?? process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173')
   .split(',').map(origin => origin.trim()).filter(Boolean);
+allowedOrigins.push('https://linkbonus.vercel.app');
 app.use(cors({ origin: (origin, callback) => {
   if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
   return callback(new Error('Origin is not allowed by CORS'));
@@ -82,8 +83,9 @@ app.use('/api', async (req: Request, res: SessionResponse, next: NextFunction) =
 app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
   try {
     const db = res.locals.db;
-    const [profile, accounts, tx, investments, staking, commissions] = await Promise.all([
+    const [profile, profileCountry, accounts, tx, investments, staking, commissions] = await Promise.all([
       db.from('profiles').select('full_name,verification_status,referral_code').eq('id', res.locals.user.id).maybeSingle(),
+      db.from('profiles').select('country').eq('id', res.locals.user.id).maybeSingle(),
       db.from('asset_accounts').select('id,asset_code').eq('owner_id', res.locals.user.id),
       db.from('ledger_transactions').select('id,kind,status,amount_minor,asset_code,description,created_at').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false }).limit(5),
       db.from('investments').select('principal_minor,asset_code,status').eq('owner_id', res.locals.user.id).in('status', ['active','pending']),
@@ -97,7 +99,7 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     if (entries.error) throw entries.error;
     const balances = new Map<string, bigint>();
     for (const row of entries.data ?? []) balances.set(row.account_id, (balances.get(row.account_id) ?? 0n) + minor(row.amount_minor));
-    const currency = currencyForCountry(res.locals.user.country);
+    const currency = currencyForCountry(res.locals.user.country || profileCountry.data?.country);
     const availableBalance = accountRows.filter(row => row.asset_code === currency).reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
     const invested = (investments.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
     const staked = (staking.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
@@ -184,6 +186,12 @@ app.get('/api/investment-plans', async (_req, res: SessionResponse) => {
 
 app.get('/api/admin/overview', (_req, res) => res.status(503).json({ error: 'Admin reporting service requires audited admin authorization and aggregate RPCs' }));
 app.use('/api/admin', (_req, res) => res.status(503).json({ error: 'Admin management service is not configured' }));
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const message = error instanceof Error ? error.message : 'Unknown server error';
+  console.error('Unhandled API error:', message);
+  if (message === 'Origin is not allowed by CORS') return res.status(403).json({ error: message });
+  return res.status(500).json({ error: 'Internal server error' });
+});
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Vercel detects this exported Express app and serves it as a serverless function.
