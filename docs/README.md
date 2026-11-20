@@ -1,4 +1,4 @@
-﻿# LINK BONUS setup and deployment
+# LINK BONUS setup and deployment
 
 ## Vercel monorepo import
 

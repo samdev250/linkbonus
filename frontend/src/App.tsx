@@ -1,4 +1,4 @@
-﻿import {useEffect,useState} from'react';import{Activity,ArrowDownLeft,ArrowDownToLine,ArrowLeftRight,ArrowUpRight,Bell,BriefcaseBusiness,Check,ChevronDown,ChevronRight,CircleHelp,Coins,Copy,Download,Eye,EyeOff,FileText,Gift,Globe,Home,KeyRound,LayoutDashboard,LockKeyhole,LogOut,Mail,MapPin,Menu,MoreHorizontal,Plus,Phone,RefreshCw,Search,Settings,ShieldCheck,TrendingUp,Users,Wallet,X, UserRound, CreditCard, CircleDollarSign}from'lucide-react';
+import {useEffect,useState} from'react';import{Activity,ArrowDownLeft,ArrowDownToLine,ArrowLeftRight,ArrowUpRight,Bell,BriefcaseBusiness,Check,ChevronDown,ChevronRight,CircleHelp,Coins,Copy,Download,Eye,EyeOff,FileText,Gift,Globe,Home,KeyRound,LayoutDashboard,LockKeyhole,LogOut,Mail,MapPin,Menu,MoreHorizontal,Plus,Phone,RefreshCw,Search,Settings,ShieldCheck,TrendingUp,Users,Wallet,X, UserRound, CreditCard, CircleDollarSign}from'lucide-react';
 import type {Session} from'@supabase/supabase-js';import{apiUrl,supabase}from'./supabase';
 import {countryName,countryRegions,flagEmoji as flagForCountry} from './countries';
 import'./public.css';
