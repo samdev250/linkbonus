@@ -14,7 +14,7 @@
     "backend": {
       "root": "backend/",
       "framework": "express",
-      "entrypoint": "dist/app.js",
+      "entrypoint": "app.bundle.js",
       "installCommand": "npm ci",
       "buildCommand": "npm run build"
     }
