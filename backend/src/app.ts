@@ -202,4 +202,4 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Vercel serves this exported Express app as a serverless function.
-export default app;
+export = app;

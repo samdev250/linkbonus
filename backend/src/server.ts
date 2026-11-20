@@ -1,4 +1,4 @@
-import app from './app.js';
+import app = require('./app.js');
 
 const port = Number(process.env.PORT) || 4000;
 app.listen(port, () => console.log(`LINK BONUS API listening on ${port} (test mode)`));
