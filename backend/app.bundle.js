@@ -38826,6 +38826,7 @@ var require_main3 = __commonJS({
 
 // src/app.ts
 var import_express = __toESM(require_express2());
+var import_node_crypto = require("node:crypto");
 var import_cors = __toESM(require_lib3());
 
 // node_modules/helmet/index.mjs
@@ -47970,6 +47971,11 @@ app.get("/api/member/dashboard", async (_req, res) => {
       date: row.created_at,
       status: row.status
     }));
+    try {
+      await db.rpc("member_sync_roi", { p_limit: 20 });
+    } catch {
+    }
+    const { data: roiData } = await db.rpc("member_roi_summary");
     const name = profile.data?.full_name || res.locals.user.email?.split("@")[0] || "Member";
     return res.json({ data: {
       name,
@@ -47983,7 +47989,8 @@ app.get("/api/member/dashboard", async (_req, res) => {
       portfolio: amount(availableBalance + invested + staked),
       transactions,
       profile: profile.data ?? null,
-      verifiedPerformance: false
+      verifiedPerformance: false,
+      returns: roiData ?? null
     } });
   } catch (error) {
     return fail(res, error);
@@ -48051,9 +48058,76 @@ app.get("/api/member/profile", async (_req, res) => {
 });
 app.get("/api/investment-plans", async (_req, res) => {
   try {
-    const { data, error } = await res.locals.db.from("investment_plans").select("id,name,minimum_minor,maximum_minor,duration_days,fee_bps,performance_methodology,risk_disclosure").eq("active", true).order("minimum_minor");
+    const { data, error } = await res.locals.db.from("investment_plans").select("id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,performance_methodology,risk_disclosure").eq("active", true).order("minimum_minor");
     if (error) throw error;
     return res.json({ data: (data ?? []).map((row) => ({ ...row, minimum: amount(minor(row.minimum_minor)), maximum: row.maximum_minor == null ? null : amount(minor(row.maximum_minor)) })) });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/member/returns", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_roi_summary");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/member/invitations", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_list_invitations");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/member/invitations", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_create_invitation", { p_email: String(req.body?.email ?? "") });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/member/invitations/accept", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("accept_invitation", { p_token: String(req.body?.token ?? "") });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/member/payment-proofs", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_list_payment_proofs");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/member/payment-proofs", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const { data, error } = await res.locals.db.rpc("submit_payment_proof", {
+      p_amount_minor: Number(body.amount_minor),
+      p_asset_code: String(body.asset_code ?? ""),
+      p_screenshot_path: String(body.screenshot_path ?? ""),
+      p_phone: String(body.phone ?? ""),
+      p_full_name: String(body.full_name ?? ""),
+      p_payer_name: String(body.payer_name ?? ""),
+      p_idempotency_key: String(body.idempotency_key ?? (0, import_node_crypto.randomUUID)()),
+      p_plan_id: body.plan_id || null,
+      p_provider_reference: body.provider_reference || null,
+      p_note: body.note || null,
+      p_payee_name: body.payee_name || null
+    });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
   } catch (error) {
     return fail(res, error);
   }
@@ -48179,6 +48253,32 @@ app.get("/api/admin/investments", async (_req, res) => {
       status: row.status,
       date: row.created_at
     })) });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/admin/payment-proofs", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_list_payment_proofs", {
+      p_status: String(req.query.status ?? "pending"),
+      p_limit: Number(req.query.limit ?? 50),
+      p_offset: Number(req.query.offset ?? 0)
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/payment-proofs/:id/review", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_review_payment_proof", {
+      p_id: req.params.id,
+      p_action: String(req.body?.action ?? ""),
+      p_note: req.body?.note || null
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
   } catch (error) {
     return fail(res, error);
   }
