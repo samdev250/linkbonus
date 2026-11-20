@@ -190,8 +190,126 @@ app.get('/api/investment-plans', async (_req, res: SessionResponse) => {
   } catch (error) { return fail(res, error); }
 });
 
-app.get('/api/admin/overview', (_req, res) => res.status(503).json({ error: 'Admin reporting service requires audited admin authorization and aggregate RPCs' }));
-app.use('/api/admin', (_req, res) => res.status(503).json({ error: 'Admin management service is not configured' }));
+app.use('/api/admin', async (_req, res: SessionResponse, next) => {
+  try {
+    const { data, error } = await res.locals.db.rpc('is_admin');
+    if (error || data !== true) return res.status(403).json({ error: 'Administrator access required' });
+    next();
+  } catch (error) { return fail(res, error); }
+});
+
+app.get('/api/admin/overview', async (_req, res: SessionResponse) => {
+  try {
+    const { data, error } = await res.locals.db.rpc('admin_overview');
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) { return fail(res, error); }
+});
+
+app.get('/api/admin/users', async (req, res: SessionResponse) => {
+  try {
+    const search = String(req.query.search ?? '').slice(0, 120);
+    const status = String(req.query.status ?? 'All users').slice(0, 40);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const { data, error } = await res.locals.db.rpc('admin_list_users', { p_search: search, p_status: status, p_limit: limit, p_offset: offset });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) { return fail(res, error); }
+});
+
+app.post('/api/admin/users', async (req, res) => {
+  try {
+    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    const password = String(req.body?.password ?? '');
+    const full_name = String(req.body?.full_name ?? '').trim();
+    const country = String(req.body?.country ?? '').trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'A valid email address is required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const { data, error } = await authClient!.auth.signUp({ email, password, options: { data: { full_name, country } } });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data: { id: data.user?.id ?? null, email: data.user?.email ?? email, sessionCreated: Boolean(data.session) } });
+  } catch (error) { return fail(res, error); }
+});
+
+app.patch('/api/admin/users/:id', async (req, res: SessionResponse) => {
+  try {
+    const { data, error } = await res.locals.db.rpc('admin_update_user', {
+      p_id: req.params.id,
+      p_full_name: String(req.body?.full_name ?? ''),
+      p_country: String(req.body?.country ?? ''),
+      p_phone: String(req.body?.phone ?? ''),
+      p_status: String(req.body?.status ?? 'active'),
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) { return fail(res, error); }
+});
+
+app.post('/api/admin/users/:id/status', async (req, res: SessionResponse) => {
+  try {
+    const { data, error } = await res.locals.db.rpc('admin_set_user_status', {
+      p_id: req.params.id,
+      p_status: String(req.body?.status ?? ''),
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) { return fail(res, error); }
+});
+
+app.get('/api/admin/transactions', async (req, res: SessionResponse) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+    const status = String(req.query.status ?? 'All');
+    let query = res.locals.db.from('ledger_transactions')
+      .select('id,kind,status,amount_minor,asset_code,provider_reference,description,created_at,owner_id')
+      .order('created_at', { ascending: false }).limit(limit);
+    if (status === 'Deposits' || status === 'Withdrawals') query = query.eq('kind', status === 'Deposits' ? 'deposit' : 'withdrawal');
+    else if (['Pending','Completed','Failed','Reversed'].includes(status)) query = query.eq('status', status.toLowerCase());
+    const { data, error } = await query;
+    if (error) return fail(res, error);
+    const rows = data ?? [];
+    const ids = Array.from(new Set(rows.map(row => row.owner_id)));
+    const profiles = ids.length ? await res.locals.db.from('profiles').select('id,full_name').in('id', ids) : { data: [], error: null };
+    if (profiles.error) return fail(res, profiles.error);
+    const names = new Map((profiles.data ?? []).map(row => [row.id, row.full_name]));
+    return res.json({ data: rows.map(row => ({
+      id: row.id,
+      reference: row.provider_reference ?? row.id.slice(0, 8),
+      user: names.get(row.owner_id) ?? String(row.owner_id).slice(0, 8),
+      type: row.kind,
+      amount: amount(minor(row.amount_minor)),
+      asset_code: row.asset_code,
+      date: row.created_at,
+      status: row.status,
+    })) });
+  } catch (error) { return fail(res, error); }
+});
+
+app.get('/api/admin/investments', async (_req, res: SessionResponse) => {
+  try {
+    const { data, error } = await res.locals.db.from('investments')
+      .select('id,principal_minor,asset_code,status,created_at,owner_id,investment_plans(name)')
+      .order('created_at', { ascending: false }).limit(200);
+    if (error) return fail(res, error);
+    const rows = data ?? [];
+    const ids = Array.from(new Set(rows.map(row => row.owner_id)));
+    const profiles = ids.length ? await res.locals.db.from('profiles').select('id,full_name').in('id', ids) : { data: [], error: null };
+    if (profiles.error) return fail(res, profiles.error);
+    const names = new Map((profiles.data ?? []).map(row => [row.id, row.full_name]));
+    return res.json({ data: rows.map(row => ({
+      id: row.id,
+      user: names.get(row.owner_id) ?? String(row.owner_id).slice(0, 8),
+      plan: (row as any).investment_plans?.name ?? 'Plan',
+      amount: amount(minor(row.principal_minor)),
+      asset_code: row.asset_code,
+      status: row.status,
+      date: row.created_at,
+    })) });
+  } catch (error) { return fail(res, error); }
+});
+
+app.use('/api/admin', (_req, res) => res.status(404).json({ error: 'Admin route not found' }));
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const message = error instanceof Error ? error.message : 'Unknown server error';
   console.error('Unhandled API error:', message);
