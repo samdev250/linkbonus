@@ -15,9 +15,16 @@ app.use(cors({ origin: (origin, callback) => {
 } }));
 app.use(express.json({ limit: '32kb' }));
 
-const url = process.env.SUPABASE_URL;
-const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-const authClient = url && anonKey ? createClient(url, anonKey, { auth: { persistSession: false } }) : null;
+const clean = (value?: string) => (value ?? '').trim().replace(/^["']|["']$/g, '');
+const configuredUrl = clean(process.env.SUPABASE_URL);
+const configuredKey = clean(process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY);
+const url = /^https?:\/\/\S+$/i.test(configuredUrl) ? configuredUrl : '';
+const anonKey = configuredKey;
+let authClient: SupabaseClient | null = null;
+if (url && anonKey) {
+  try { authClient = createClient(url, anonKey, { auth: { persistSession: false } }); }
+  catch { authClient = null; }
+}
 type SessionLocals = { user: { id: string; email?: string; country?: string }; db: SupabaseClient };
 type SessionResponse = Response<unknown, SessionLocals>;
 const fail = (res: Response, error: unknown) => {
