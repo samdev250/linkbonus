@@ -13,17 +13,18 @@
 .overview-hero-stat strong{font:800 28px/1 Manrope,sans-serif;color:#fff}
 .overview-hero-stat small{font-size:9px;color:#a9d3df}
 .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:16px}
-.metric-card{position:relative;overflow:hidden;background:#fff;border:1px solid #e6ecf5;border-radius:14px;padding:16px 17px 14px;box-shadow:0 6px 18px #13294a0a;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
-.metric-card:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--tone)}
-.metric-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px #13294a17;border-color:#cbdaf0}
-.tone-blue{--tone:#1769e8;--tone-soft:#e9f1ff}
-.tone-teal{--tone:#0f9f9a;--tone-soft:#e3f8f6}
-.tone-violet{--tone:#805cdb;--tone-soft:#f1edff}
-.tone-green{--tone:#13996f;--tone-soft:#e4f7ef}
-.tone-amber{--tone:#d39116;--tone-soft:#fff5df}
-.tone-rose{--tone:#d86072;--tone-soft:#fff0f2}
-.tone-indigo{--tone:#3f5bd8;--tone-soft:#eaedff}
-.tone-cyan{--tone:#0d92b8;--tone-soft:#e4f7fc}
+.metric-card{position:relative;overflow:hidden;background:linear-gradient(155deg,var(--tone-bg) 0%,#fff 82%);border:1px solid var(--tone-border);border-radius:14px;padding:16px 17px 14px;box-shadow:0 6px 18px #13294a0a;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.metric-card:after{content:"";position:absolute;width:120px;height:120px;right:-46px;top:-58px;border-radius:50%;background:var(--tone-soft);opacity:.72;pointer-events:none}
+.metric-card>*{position:relative;z-index:1}
+.metric-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px #13294a17;border-color:var(--tone)}
+.tone-blue{--tone:#1769e8;--tone-soft:#dceaff;--tone-bg:#eff6ff;--tone-border:#cfe0fb}
+.tone-teal{--tone:#0f9f9a;--tone-soft:#d3f2ee;--tone-bg:#ebfaf8;--tone-border:#bfe8e3}
+.tone-violet{--tone:#805cdb;--tone-soft:#e6dcff;--tone-bg:#f5f1ff;--tone-border:#ddd0fa}
+.tone-green{--tone:#13996f;--tone-soft:#d5f0e5;--tone-bg:#eaf8f2;--tone-border:#c2e7d7}
+.tone-amber{--tone:#d39116;--tone-soft:#ffedc9;--tone-bg:#fff9ec;--tone-border:#f2dfb6}
+.tone-rose{--tone:#d86072;--tone-soft:#ffdfe4;--tone-bg:#fff2f4;--tone-border:#f5ccd3}
+.tone-indigo{--tone:#3f5bd8;--tone-soft:#dbe1ff;--tone-bg:#f0f2ff;--tone-border:#ccd5f8}
+.tone-cyan{--tone:#0d92b8;--tone-soft:#d0f0f9;--tone-bg:#ebf9fc;--tone-border:#bfe5ef}
 .metric-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
 .metric-icon{width:35px;height:35px;border-radius:10px;display:grid;place-items:center;background:var(--tone-soft);color:var(--tone)}
 .metric-bars{display:flex;align-items:flex-end;gap:3px;height:22px}

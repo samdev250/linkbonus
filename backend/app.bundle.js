@@ -47941,7 +47941,7 @@ app.get("/api/member/dashboard", async (_req, res) => {
   try {
     const db = res.locals.db;
     const [profile, profileCountry, accounts, tx, investments, staking, commissions] = await Promise.all([
-      db.from("profiles").select("full_name,verification_status,referral_code").eq("id", res.locals.user.id).maybeSingle(),
+      db.from("profiles").select("full_name,country,phone,verification_status,referral_code").eq("id", res.locals.user.id).maybeSingle(),
       db.from("profiles").select("country").eq("id", res.locals.user.id).maybeSingle(),
       db.from("asset_accounts").select("id,asset_code").eq("owner_id", res.locals.user.id),
       db.from("ledger_transactions").select("id,kind,status,amount_minor,asset_code,description,created_at").eq("owner_id", res.locals.user.id).order("created_at", { ascending: false }).limit(5),
@@ -48151,6 +48151,7 @@ app.get("/api/admin/transactions", async (req, res) => {
       user: names.get(row.owner_id) ?? String(row.owner_id).slice(0, 8),
       type: row.kind,
       amount: amount(minor(row.amount_minor)),
+      amount_minor: row.amount_minor,
       asset_code: row.asset_code,
       date: row.created_at,
       status: row.status
@@ -48173,6 +48174,7 @@ app.get("/api/admin/investments", async (_req, res) => {
       user: names.get(row.owner_id) ?? String(row.owner_id).slice(0, 8),
       plan: row.investment_plans?.name ?? "Plan",
       amount: amount(minor(row.principal_minor)),
+      principal_minor: row.principal_minor,
       asset_code: row.asset_code,
       status: row.status,
       date: row.created_at
