@@ -27,6 +27,10 @@ if (url && anonKey) {
 type SessionLocals = { user: { id: string; email?: string; country?: string }; db: SupabaseClient };
 type SessionResponse = Response<unknown, SessionLocals>;
 const fail = (res: Response, error: unknown) => {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === 'PGRST202' || code === '42883') {
+    return res.status(503).json({ error: 'A required database function is missing. Run the latest Supabase migration.' });
+  }
   console.error('API request failed:', error);
   return res.status(500).json({ error: 'Unable to load requested data' });
 };
