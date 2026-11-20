@@ -1,5 +1,5 @@
 // ISO 3166-1 country and territory codes grouped into familiar regions.
-// Names are supplied by the browser's locale data and flags use Unicode regional indicators.
+// Names come from browser locale data and flags use Unicode regional indicators.
 export const countryRegions: Record<string, string[]> = {
   'East Africa': 'BI KM DJ ER ET KE MG MW MU MZ RE RW SC SO SS SD TZ UG YT'.split(' '),
   'West Africa': 'BJ BF CV CI GM GH GN GW LR ML MR NE NG SN SL TG'.split(' '),

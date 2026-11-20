@@ -1,4 +1,4 @@
-/* LINK BONUS palette sampled from the supplied dashboard reference. */
+/* LINK BONUS palette. */
 .public-site{background:#071b3a;color:#f5f8ff}
 .public-header{background:linear-gradient(105deg,#203b91 0%,#176da4 54%,#18c4c1 100%);border-bottom:2px solid #16c7c2}
 .public-header{width:100%;max-width:none;padding-inline:clamp(24px,4vw,56px)}
