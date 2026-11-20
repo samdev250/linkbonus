@@ -195,7 +195,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Vercel detects this exported Express app and serves it as a serverless function.
-export = app;
+export default app;
 
 // Keep the same module usable by local Node development.
 if (process.env.VERCEL !== '1') {
