@@ -48132,6 +48132,44 @@ app.post("/api/member/payment-proofs", async (req, res) => {
     return fail(res, error);
   }
 });
+app.get("/api/support-settings", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_support_settings");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/payment-instructions", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_get_payment_instruction", {
+      p_country_code: String(req.query.country ?? "") || null
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/member/notifications", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_list_notifications");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/member/notifications/:id/read", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_mark_notification_read", { p_id: req.params.id });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
 app.use("/api/admin", async (_req, res, next) => {
   try {
     const { data, error } = await res.locals.db.rpc("is_admin");
@@ -48276,6 +48314,71 @@ app.post("/api/admin/payment-proofs/:id/review", async (req, res) => {
       p_id: req.params.id,
       p_action: String(req.body?.action ?? ""),
       p_note: req.body?.note || null
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/admin/payment-instructions", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_list_payment_instructions");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/payment-instructions", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const { data, error } = await res.locals.db.rpc("admin_upsert_payment_instruction", {
+      p_country_code: String(body.country_code ?? ""),
+      p_bank_name: String(body.bank_name ?? ""),
+      p_account_name: String(body.account_name ?? ""),
+      p_account_number: String(body.account_number ?? ""),
+      p_instructions: String(body.instructions ?? ""),
+      p_active: body.active !== false
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/admin/notifications", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_list_notifications");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/notifications", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const { data, error } = await res.locals.db.rpc("admin_create_notification", {
+      p_title: String(body.title ?? ""),
+      p_body: String(body.body ?? ""),
+      p_audience: String(body.audience ?? ""),
+      p_country_code: body.country_code || null,
+      p_user_email: body.user_email || null
+    });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/support-settings", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const { data, error } = await res.locals.db.rpc("admin_update_support_settings", {
+      p_email: String(body.support_email ?? ""),
+      p_whatsapp: body.whatsapp_url || null,
+      p_telegram: body.telegram_url || null
     });
     if (error) return fail(res, error);
     return res.json({ data });
