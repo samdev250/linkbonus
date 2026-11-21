@@ -48,3 +48,11 @@
 .muted-link{color:#8090a5}
 @media(max-width:1100px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.user-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.metric-grid{grid-template-columns:1fr 1fr;gap:8px}.metric-card{padding:13px}.metric-value{font-size:18px}.metric-bars{display:none}.overview-hero{padding:18px;flex-direction:column;align-items:flex-start}.overview-hero-stat{width:100%}.user-form{grid-template-columns:1fr}.admin-heading-actions{flex-direction:column;align-items:stretch}}
+.sidebar-overlay{display:none}
+.admin-dashboard .sidebar{overflow-y:auto}
+.admin-dashboard .top-actions{min-width:0}
+.admin-logout-label{white-space:nowrap}
+@media(max-width:1000px){.admin-columns{grid-template-columns:1fr}.table-head{display:none}.admin-table{overflow:visible}.table-row{min-width:0;grid-template-columns:repeat(2,minmax(0,1fr));padding:12px 10px;border-bottom:1px solid #edf1f7}.table-row>*{min-width:0}.table-row>button,.table-row>.row-actions{grid-column:1/-1}.user-row{grid-template-columns:1fr 1fr}.user-row .user-cell{grid-column:1/-1}.filters{flex-direction:column;align-items:stretch}.search-box{max-width:none}.tabs{overflow-x:auto;gap:16px;padding-bottom:4px}.tabs button{white-space:nowrap;flex:none}.notice-banner{flex-wrap:wrap;align-items:flex-start}.activity-row{flex-wrap:wrap}.activity-row time{margin-left:auto}}
+@media(max-width:700px){.admin-dashboard .topbar-brand{display:none}.admin-dashboard .breadcrumb{margin-right:auto}.admin-dashboard .top-actions{gap:7px}.admin-dashboard .admin-logout{padding:8px}.admin-dashboard .profile-chip{padding:4px}.sidebar-overlay{display:block;position:fixed;inset:0;background:#071b3a66;border:0;z-index:4}.table-row,.user-row{grid-template-columns:1fr}.admin-heading-actions{flex-direction:row;flex-wrap:wrap}.admin-heading-actions button{flex:1}.overview-hero h2{font-size:20px}.admin-dashboard .notification-menu{position:fixed;top:58px;left:8px;right:8px;width:auto;max-height:calc(100vh - 70px)}}
+@media(max-width:480px){.admin-logout-label{display:none}.admin-dashboard .admin-logout{width:32px;padding:7px}.metric-grid{grid-template-columns:1fr}.activity-panel .panel-heading{align-items:flex-start;gap:6px}.page-heading h1{font-size:20px}}
+@media(max-width:360px){.content{padding:18px 10px 26px}.topbar{padding:0 10px}}
