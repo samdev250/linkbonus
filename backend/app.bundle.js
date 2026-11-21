@@ -48347,6 +48347,39 @@ app.post("/api/admin/payment-instructions", async (req, res) => {
     return fail(res, error);
   }
 });
+app.get("/api/admin/plans", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_list_plans");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/plans", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const toMinor = (value) => Math.round(Number(value || 0) * 100);
+    const { data, error } = await res.locals.db.rpc("admin_upsert_plan", {
+      p_id: body.id || null,
+      p_name: String(body.name ?? ""),
+      p_minimum_minor: toMinor(body.minimum),
+      p_maximum_minor: body.maximum === "" || body.maximum == null ? null : toMinor(body.maximum),
+      p_duration_days: body.duration_days === "" || body.duration_days == null ? null : Number(body.duration_days),
+      p_fee_bps: Math.round(Number(body.fee_percent || 0) * 100),
+      p_roi_rate_bps: Math.round(Number(body.roi_percent || 0) * 100),
+      p_roi_interval_hours: Number(body.roi_interval_hours || 24),
+      p_settlement_asset_code: String(body.settlement_asset_code || "USD"),
+      p_performance_methodology: String(body.performance_methodology ?? ""),
+      p_risk_disclosure: String(body.risk_disclosure ?? ""),
+      p_active: body.active !== false
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
 app.get("/api/admin/notifications", async (_req, res) => {
   try {
     const { data, error } = await res.locals.db.rpc("admin_list_notifications");
