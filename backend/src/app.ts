@@ -311,6 +311,14 @@ app.get('/api/admin/overview', async (_req, res: SessionResponse) => {
   } catch (error) { return fail(res, error); }
 });
 
+app.get('/api/admin/referrals', async (_req, res: SessionResponse) => {
+  try {
+    const { data, error } = await res.locals.db.rpc('admin_referral_list');
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) { return fail(res, error); }
+});
+
 app.get('/api/admin/users', async (req, res: SessionResponse) => {
   try {
     const search = String(req.query.search ?? '').slice(0, 120);
