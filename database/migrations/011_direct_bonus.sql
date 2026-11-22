@@ -38,7 +38,7 @@ on conflict (name) do update set
   updated_at = now();
 
 -- Staking is replaced by Direct Bonus. Remove its records, policies and ledger kind.
-update public.ledger_transactions set kind = 'exchange' where kind = 'staking';
+update public.ledger_transactions set kind = 'exchange' where kind::text = 'staking';
 
 alter type public.transaction_kind rename to transaction_kind_legacy;
 create type public.transaction_kind as enum ('deposit', 'withdrawal', 'investment', 'exchange', 'referral_commission', 'roi_credit');
