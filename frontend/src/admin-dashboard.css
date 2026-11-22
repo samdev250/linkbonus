@@ -46,6 +46,11 @@
 .user-row input,.user-row select{padding:6px 7px}
 .row-actions{display:flex;gap:8px;align-items:center}
 .muted-link{color:#8090a5}
+.pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:0 2px;color:#6b7a90;font-size:10px}
+.pagination>div{display:flex;align-items:center;gap:8px}
+.pagination button{display:inline-flex;align-items:center;gap:5px;border:1px solid #dce4ef;background:#fff;color:#3e526e;border-radius:7px;padding:6px 9px;font-size:10px;font-weight:600;cursor:pointer}
+.pagination button:disabled{opacity:.45;cursor:not-allowed}
+.pagination strong{color:#24344d;font-size:10px}
 @media(max-width:1100px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.user-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.metric-grid{grid-template-columns:1fr 1fr;gap:8px}.metric-card{padding:13px}.metric-value{font-size:18px}.metric-bars{display:none}.overview-hero{padding:18px;flex-direction:column;align-items:flex-start}.overview-hero-stat{width:100%}.user-form{grid-template-columns:1fr}.admin-heading-actions{flex-direction:column;align-items:stretch}}
 .sidebar-overlay{display:none}
@@ -56,3 +61,4 @@
 @media(max-width:700px){.admin-dashboard .topbar-brand{display:none}.admin-dashboard .breadcrumb{margin-right:auto}.admin-dashboard .top-actions{gap:7px}.admin-dashboard .admin-logout{padding:8px}.admin-dashboard .profile-chip{padding:4px}.sidebar-overlay{display:block;position:fixed;inset:0;background:#071b3a66;border:0;z-index:4}.table-row,.user-row{grid-template-columns:1fr}.admin-heading-actions{flex-direction:row;flex-wrap:wrap}.admin-heading-actions button{flex:1}.overview-hero h2{font-size:20px}.admin-dashboard .notification-menu{position:fixed;top:58px;left:8px;right:8px;width:auto;max-height:calc(100vh - 70px)}}
 @media(max-width:480px){.admin-logout-label{display:none}.admin-dashboard .admin-logout{width:32px;padding:7px}.metric-grid{grid-template-columns:1fr}.activity-panel .panel-heading{align-items:flex-start;gap:6px}.page-heading h1{font-size:20px}}
 @media(max-width:360px){.content{padding:18px 10px 26px}.topbar{padding:0 10px}}
+@media(max-width:700px){.pagination{flex-direction:column;align-items:stretch}.pagination>div{justify-content:space-between}}
