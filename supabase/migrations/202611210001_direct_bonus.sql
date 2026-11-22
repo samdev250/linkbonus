@@ -46,8 +46,6 @@ alter table public.ledger_transactions
   alter column kind type public.transaction_kind using kind::text::public.transaction_kind;
 drop type public.transaction_kind_legacy;
 
-drop policy if exists "staking admin read" on public.staking_positions;
-drop policy if exists "staking own read" on public.staking_positions;
 drop table if exists public.staking_positions;
 
 -- Refresh the admin overview without the removed staking metric.
