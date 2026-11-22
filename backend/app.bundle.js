@@ -47981,6 +47981,7 @@ app.get("/api/member/dashboard", async (_req, res) => {
       currency,
       available: amount(availableBalance),
       invested: amount(invested),
+      bonus: amount(0n),
       referrals: amount(credited),
       pendingReferrals: amount(pending),
       portfolio: amount(availableBalance + invested),

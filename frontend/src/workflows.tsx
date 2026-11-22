@@ -2,7 +2,7 @@ import {useEffect,useState} from 'react';
 import {ArrowRight, Bell, Building2, CheckCircle2, Copy, Gift, Globe2, Image as ImageIcon, Loader2, Mail, MessageCircle, Pencil, Plus, ReceiptText, Send, ShieldCheck, TrendingUp, Upload, X, XCircle} from 'lucide-react';
 import {apiUrl,supabase} from './supabase';
 import {countryRegions} from './countries';
-import {DirectBonusPanel,isBurundi} from './directBonus';
+import {isBurundi} from './directBonus';
 
 const client = async (token:string,path:string,init:RequestInit={}) => {
   const response = await fetch(`${apiUrl}${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(init.headers||{})}});
@@ -24,9 +24,8 @@ export function ReturnStrip({returns,money}:any){
   </section>;
 }
 
-export function InvestPage({data,money,token,onChoose}:any){
+export function InvestPage({data,money,token,onChoose,onDirectBonus}:any){
   const burundi=isBurundi(data?.profile?.country,data?.currency);
-  const tabs=burundi?['My Investments']:['Available Plans','My Investments'];
   const [tab,setTab]=useState('Available Plans');
   const [plans,setPlans]=useState<any[]>([]);
   const [rows,setRows]=useState<any[]>([]);
@@ -36,11 +35,10 @@ export function InvestPage({data,money,token,onChoose}:any){
   const [error,setError]=useState('');
   const load=async()=>{setLoading(true);setError('');try{const [p,i,r,pr]=await Promise.all([client(token,'/investment-plans'),client(token,'/member/investments'),client(token,'/member/returns'),client(token,'/member/payment-proofs')]);setPlans(p as any[]);setRows(i as any[]);setReturns(r);setProofs(pr as any[])}catch(e){setError(e instanceof Error?e.message:'Could not load plans')}finally{setLoading(false)}};
   useEffect(()=>{load()},[token]);
-  useEffect(()=>{if(burundi&&tab==='Available Plans')setTab('My Investments')},[burundi,tab]);
   return <>
     <ReturnStrip returns={returns} money={money}/>
-    {burundi&&<DirectBonusPanel compact/>}
-    <div className="tabs"> {tabs.map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
+    {burundi&&<div className="section-heading"><div><h2>Received Bonus</h2><p>Review the LINK BONUS details for Burundi members.</p></div><button className="outline-button" onClick={onDirectBonus}><Gift size={16}/> Direct Bonus</button></div>}
+    <div className="tabs"> {['Available Plans','My Investments'].map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
     {error&&<div className="notice-banner data-error"><ShieldCheck size={18}/><span><b>Plans unavailable</b><small>{error}</small></span></div>}
     {loading&&<div className="inline-loading"><Loader2 size={15} className="spin"/> Loading plans…</div>}
     {tab==='Available Plans'?<>

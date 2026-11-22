@@ -43,7 +43,7 @@ export default async function handler(req:any,res:any){
       const credited=(commissions.data??[]).filter((r:any)=>r.status==='credited').reduce((s:bigint,r:any)=>s+minor(r.amount_minor),0n);
       const pending=(commissions.data??[]).filter((r:any)=>r.status==='pending').reduce((s:bigint,r:any)=>s+minor(r.amount_minor),0n);
       const transactions=(tx.data??[]).map((r:any)=>({id:r.id,label:r.kind.replaceAll('_',' ').replace(/\b\w/g,(c:string)=>c.toUpperCase()),detail:r.description??r.asset_code,amount:`${r.kind==='deposit'||r.kind==='referral_commission'?'+':'−'} ${r.asset_code} ${amount(minor(r.amount_minor))}`,date:r.created_at,status:r.status}));
-      return res.json({data:{name:profile.data?.full_name||user.email?.split('@')[0]||'Member',email:user.email??'',currency:'USD',available:amount(BigInt(available)),invested:amount(invested),referrals:amount(credited),pendingReferrals:amount(pending),portfolio:amount(BigInt(available)+invested),transactions,profile:profile.data??null,verifiedPerformance:false}});
+      return res.json({data:{name:profile.data?.full_name||user.email?.split('@')[0]||'Member',email:user.email??'',currency:'USD',available:amount(BigInt(available)),invested:amount(invested),bonus:amount(0n),referrals:amount(credited),pendingReferrals:amount(pending),portfolio:amount(BigInt(available)+invested),transactions,profile:profile.data??null,verifiedPerformance:false}});
     }
     if(route==='member/transactions'){
       const limit=Math.min(Math.max(Number(req.query?.limit)||25,1),100);

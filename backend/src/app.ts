@@ -124,7 +124,7 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     const name = profile.data?.full_name || res.locals.user.email?.split('@')[0] || 'Member';
     return res.json({ data: {
       name, email: res.locals.user.email ?? '', currency,
-      available: amount(availableBalance), invested: amount(invested),
+      available: amount(availableBalance), invested: amount(invested), bonus: amount(0n),
       referrals: amount(credited), pendingReferrals: amount(pending),
       portfolio: amount(availableBalance + invested), transactions,
       profile: profile.data ?? null, verifiedPerformance: false, returns: roiData ?? null,
