@@ -47941,16 +47941,15 @@ app.use("/api", async (req, res, next) => {
 app.get("/api/member/dashboard", async (_req, res) => {
   try {
     const db = res.locals.db;
-    const [profile, profileCountry, accounts, tx, investments, staking, commissions] = await Promise.all([
+    const [profile, profileCountry, accounts, tx, investments, commissions] = await Promise.all([
       db.from("profiles").select("full_name,country,phone,verification_status,referral_code").eq("id", res.locals.user.id).maybeSingle(),
       db.from("profiles").select("country").eq("id", res.locals.user.id).maybeSingle(),
       db.from("asset_accounts").select("id,asset_code").eq("owner_id", res.locals.user.id),
       db.from("ledger_transactions").select("id,kind,status,amount_minor,asset_code,description,created_at").eq("owner_id", res.locals.user.id).order("created_at", { ascending: false }).limit(5),
       db.from("investments").select("principal_minor,asset_code,status").eq("owner_id", res.locals.user.id).in("status", ["active", "pending"]),
-      db.from("staking_positions").select("principal_minor,asset_code,status").eq("owner_id", res.locals.user.id).in("status", ["active", "pending"]),
       db.from("referral_commissions").select("amount_minor,status").eq("referrer_id", res.locals.user.id)
     ]);
-    for (const result of [profile, accounts, tx, investments, staking, commissions]) if (result.error) throw result.error;
+    for (const result of [profile, accounts, tx, investments, commissions]) if (result.error) throw result.error;
     const accountRows = accounts.data ?? [];
     const accountIds = accountRows.map((row) => row.id);
     const entries = accountIds.length ? await db.from("ledger_entries").select("account_id,amount_minor").in("account_id", accountIds) : { data: [], error: null };
@@ -47960,7 +47959,6 @@ app.get("/api/member/dashboard", async (_req, res) => {
     const currency = currencyForCountry(res.locals.user.country || profileCountry.data?.country);
     const availableBalance = accountRows.filter((row) => row.asset_code === currency).reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
     const invested = (investments.data ?? []).filter((row) => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
-    const staked = (staking.data ?? []).filter((row) => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
     const credited = (commissions.data ?? []).filter((row) => row.status === "credited").reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const pending = (commissions.data ?? []).filter((row) => row.status === "pending").reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const transactions = (tx.data ?? []).map((row) => ({
@@ -47983,10 +47981,9 @@ app.get("/api/member/dashboard", async (_req, res) => {
       currency,
       available: amount(availableBalance),
       invested: amount(invested),
-      staked: amount(staked),
       referrals: amount(credited),
       pendingReferrals: amount(pending),
-      portfolio: amount(availableBalance + invested + staked),
+      portfolio: amount(availableBalance + invested),
       transactions,
       profile: profile.data ?? null,
       verifiedPerformance: false,
@@ -48058,7 +48055,10 @@ app.get("/api/member/profile", async (_req, res) => {
 });
 app.get("/api/investment-plans", async (_req, res) => {
   try {
-    const { data, error } = await res.locals.db.from("investment_plans").select("id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,performance_methodology,risk_disclosure").eq("active", true).order("minimum_minor");
+    const profile = await res.locals.db.from("profiles").select("country").eq("id", res.locals.user.id).maybeSingle();
+    if (profile.error) throw profile.error;
+    const currency = currencyForCountry(res.locals.user.country || profile.data?.country);
+    const { data, error } = await res.locals.db.from("investment_plans").select("id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,performance_methodology,risk_disclosure").eq("active", true).eq("settlement_asset_code", currency).order("minimum_minor");
     if (error) throw error;
     return res.json({ data: (data ?? []).map((row) => ({ ...row, minimum: amount(minor(row.minimum_minor)), maximum: row.maximum_minor == null ? null : amount(minor(row.maximum_minor)) })) });
   } catch (error) {

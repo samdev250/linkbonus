@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {ArrowRight, Bell, Building2, CheckCircle2, Copy, Gift, Globe2, Image as ImageIcon, Loader2, Mail, MessageCircle, Pencil, Plus, ReceiptText, Send, ShieldCheck, TrendingUp, Upload, X, XCircle} from 'lucide-react';
 import {apiUrl,supabase} from './supabase';
 import {countryRegions} from './countries';
+import {DirectBonusPanel,isBurundi} from './directBonus';
 
 const client = async (token:string,path:string,init:RequestInit={}) => {
   const response = await fetch(`${apiUrl}${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(init.headers||{})}});
@@ -11,6 +12,7 @@ const client = async (token:string,path:string,init:RequestInit={}) => {
 };
 const minorMoney = (value:any,money:(v:string)=>string) => money(String((Number(value||0)/100).toFixed(2)));
 const dateLabel = (value:any) => value?new Date(value).toLocaleString():'Not scheduled';
+const withBreaks = (value:any) => String(value||'').replace(/<br\s*\/?>/gi,'\n').split(/\r?\n/).map((line:string,i:number)=><span key={i}>{i>0&&<br/>}{line}</span>);
 const DAILY_RATE_BPS = 500;
 const SUPPORT_WHATSAPP_NUMBER = '+250793658206';
 
@@ -23,6 +25,8 @@ export function ReturnStrip({returns,money}:any){
 }
 
 export function InvestPage({data,money,token,onChoose}:any){
+  const burundi=isBurundi(data?.profile?.country,data?.currency);
+  const tabs=burundi?['My Investments']:['Available Plans','My Investments'];
   const [tab,setTab]=useState('Available Plans');
   const [plans,setPlans]=useState<any[]>([]);
   const [rows,setRows]=useState<any[]>([]);
@@ -32,9 +36,11 @@ export function InvestPage({data,money,token,onChoose}:any){
   const [error,setError]=useState('');
   const load=async()=>{setLoading(true);setError('');try{const [p,i,r,pr]=await Promise.all([client(token,'/investment-plans'),client(token,'/member/investments'),client(token,'/member/returns'),client(token,'/member/payment-proofs')]);setPlans(p as any[]);setRows(i as any[]);setReturns(r);setProofs(pr as any[])}catch(e){setError(e instanceof Error?e.message:'Could not load plans')}finally{setLoading(false)}};
   useEffect(()=>{load()},[token]);
+  useEffect(()=>{if(burundi&&tab==='Available Plans')setTab('My Investments')},[burundi,tab]);
   return <>
     <ReturnStrip returns={returns} money={money}/>
-    <div className="tabs"> {['Available Plans','My Investments'].map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
+    {burundi&&<DirectBonusPanel compact/>}
+    <div className="tabs"> {tabs.map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
     {error&&<div className="notice-banner data-error"><ShieldCheck size={18}/><span><b>Plans unavailable</b><small>{error}</small></span></div>}
     {loading&&<div className="inline-loading"><Loader2 size={15} className="spin"/> Loading plans…</div>}
     {tab==='Available Plans'?<>
@@ -102,7 +108,7 @@ export function PaymentInstructions({token,country,compact}:any){
   useEffect(()=>{setRow(null);client(token,`/payment-instructions?country=${encodeURIComponent(String(country||''))}`).then(setRow).catch(()=>setRow({configured:false}))},[token,country]);
   if(!row)return <div className="inline-loading"><Loader2 size={15} className="spin"/> Loading payment details…</div>;
   if(!row.configured)return <div className="notice-banner"><ShieldCheck size={18}/><span><b>Payment instructions pending</b><small>Administration has not published deposit details for {countryLabel(String(country||''))} yet. Contact support for help.</small></span></div>;
-  return <section className={`panel payment-instructions ${compact?'compact':''}`}><div className="panel-heading"><div><h2>Pay for {countryLabel(row.country_code)}</h2><p>{compact?'Follow these details before submitting your screenshot.':'Use these details for deposits, then submit your proof below.'}</p></div><span className="status-tag">VERIFIED PAYEE</span></div><div className="payment-detail-grid"><div><small>Account name</small><b>{row.account_name}</b></div><div><small>Account number</small><b>{row.account_number}</b></div><div><small>Bank / provider</small><b>{row.bank_name||'Not specified'}</b></div></div>{row.instructions&&<p className="payment-note">{row.instructions}</p>}</section>;
+  return <section className={`panel payment-instructions ${compact?'compact':''}`}><div className="panel-heading"><div><h2>Pay for {countryLabel(row.country_code)}</h2><p>{compact?'Follow these details before submitting your screenshot.':'Use these details for deposits, then submit your proof below.'}</p></div><span className="status-tag">VERIFIED PAYEE</span></div><div className="payment-detail-grid"><div><small>Account name</small><b>{row.account_name}</b></div><div><small>Account number</small><b>{row.account_number}</b></div><div><small>Bank / provider</small><b>{row.bank_name||'Not specified'}</b></div></div>{row.instructions&&<p className="payment-note">{withBreaks(row.instructions)}</p>}</section>;
 }
 
 export function SupportCard({token}:any){

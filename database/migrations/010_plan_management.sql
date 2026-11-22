@@ -62,7 +62,7 @@ begin
     raise exception 'Duration must be greater than zero';
   end if;
   if p_fee_bps is null or p_fee_bps < 0 or p_fee_bps > 10000 then
-    raise exception 'Fee must be between 0% and 100%';
+    raise exception 'Fee must be between 0%% and 100%%';
   end if;
   if p_roi_rate_bps is null or p_roi_rate_bps < 0 or p_roi_rate_bps > 100000 then
     raise exception 'Daily income rate is outside the allowed range';

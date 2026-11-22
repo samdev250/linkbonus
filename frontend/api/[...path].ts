@@ -26,26 +26,24 @@ export default async function handler(req:any,res:any){
     if(member?.status==='suspended')return res.status(403).json({error:'Account is suspended'});
 
     if(route==='member/dashboard'){
-      const [profile,accounts,tx,investments,staking,commissions]=await Promise.all([
+      const [profile,accounts,tx,investments,commissions]=await Promise.all([
         db.from('profiles').select('full_name,country,phone,verification_status,referral_code').eq('id',user.id).maybeSingle(),
         db.from('asset_accounts').select('id,asset_code').eq('owner_id',user.id),
         db.from('ledger_transactions').select('id,kind,status,amount_minor,asset_code,description,created_at').eq('owner_id',user.id).order('created_at',{ascending:false}).limit(5),
         db.from('investments').select('principal_minor,asset_code,status').eq('owner_id',user.id).in('status',['active','pending']),
-        db.from('staking_positions').select('principal_minor,asset_code,status').eq('owner_id',user.id).in('status',['active','pending']),
         db.from('referral_commissions').select('amount_minor,status').eq('referrer_id',user.id),
       ]);
-      for(const result of [profile,accounts,tx,investments,staking,commissions])if(result.error)throw result.error;
+      for(const result of [profile,accounts,tx,investments,commissions])if(result.error)throw result.error;
       const accountRows=accounts.data??[];const ids=accountRows.map((r:any)=>r.id);
       const entries=ids.length?await db.from('ledger_entries').select('account_id,amount_minor').in('account_id',ids):{data:[],error:null};
       if(entries.error)throw entries.error;
       const balances=new Map<string,bigint>();for(const row of entries.data??[])balances.set(row.account_id,(balances.get(row.account_id)??0n)+minor(row.amount_minor));
       const available=accountRows.filter((r:any)=>r.asset_code==='USD').reduce((s:number,r:any)=>s+Number(balances.get(r.id)??0n),0);
       const invested=(investments.data??[]).filter((r:any)=>r.asset_code==='USD').reduce((s:bigint,r:any)=>s+minor(r.principal_minor),0n);
-      const staked=(staking.data??[]).filter((r:any)=>r.asset_code==='USD').reduce((s:bigint,r:any)=>s+minor(r.principal_minor),0n);
       const credited=(commissions.data??[]).filter((r:any)=>r.status==='credited').reduce((s:bigint,r:any)=>s+minor(r.amount_minor),0n);
       const pending=(commissions.data??[]).filter((r:any)=>r.status==='pending').reduce((s:bigint,r:any)=>s+minor(r.amount_minor),0n);
       const transactions=(tx.data??[]).map((r:any)=>({id:r.id,label:r.kind.replaceAll('_',' ').replace(/\b\w/g,(c:string)=>c.toUpperCase()),detail:r.description??r.asset_code,amount:`${r.kind==='deposit'||r.kind==='referral_commission'?'+':'−'} ${r.asset_code} ${amount(minor(r.amount_minor))}`,date:r.created_at,status:r.status}));
-      return res.json({data:{name:profile.data?.full_name||user.email?.split('@')[0]||'Member',email:user.email??'',currency:'USD',available:amount(BigInt(available)),invested:amount(invested),staked:amount(staked),referrals:amount(credited),pendingReferrals:amount(pending),portfolio:amount(BigInt(available)+invested+staked),transactions,profile:profile.data??null,verifiedPerformance:false}});
+      return res.json({data:{name:profile.data?.full_name||user.email?.split('@')[0]||'Member',email:user.email??'',currency:'USD',available:amount(BigInt(available)),invested:amount(invested),referrals:amount(credited),pendingReferrals:amount(pending),portfolio:amount(BigInt(available)+invested),transactions,profile:profile.data??null,verifiedPerformance:false}});
     }
     if(route==='member/transactions'){
       const limit=Math.min(Math.max(Number(req.query?.limit)||25,1),100);
@@ -76,7 +74,7 @@ export default async function handler(req:any,res:any){
       if(error)throw error;return res.json({data:{...data,email:user.email}});
     }
     if(route==='investment-plans'){
-      const {data,error}=await db.from('investment_plans').select('id,name,minimum_minor,maximum_minor,duration_days,fee_bps,performance_methodology,risk_disclosure').eq('active',true).order('minimum_minor');
+      const {data,error}=await db.from('investment_plans').select('id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,performance_methodology,risk_disclosure').eq('active',true).eq('settlement_asset_code','USD').order('minimum_minor');
       if(error)throw error;return res.json({data:(data??[]).map((r:any)=>({...r,minimum:amount(minor(r.minimum_minor)),maximum:r.maximum_minor==null?null:amount(minor(r.maximum_minor))}))});
     }
     if(route.startsWith('admin/'))return res.status(503).json({error:'Admin management service is not configured'});
