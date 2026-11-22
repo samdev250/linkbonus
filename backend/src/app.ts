@@ -193,10 +193,11 @@ app.get('/api/investment-plans', async (_req, res: SessionResponse) => {
   try {
     const profile = await res.locals.db.from('profiles').select('country').eq('id', res.locals.user.id).maybeSingle();
     if (profile.error) throw profile.error;
-    const currency = currencyForCountry(res.locals.user.country || profile.data?.country);
+    const country = (res.locals.user.country || profile.data?.country || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const countryFilter = country ? `country_code.is.null,country_code.eq.${country}` : 'country_code.is.null';
     const { data, error } = await res.locals.db.from('investment_plans')
-      .select('id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,performance_methodology,risk_disclosure')
-      .eq('active', true).eq('settlement_asset_code', currency).order('minimum_minor');
+      .select('id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,country_code,performance_methodology,risk_disclosure')
+      .eq('active', true).or(countryFilter).order('minimum_minor');
     if (error) throw error;
     return res.json({ data: (data ?? []).map(row => ({ ...row, minimum: amount(minor(row.minimum_minor)), maximum: row.maximum_minor == null ? null : amount(minor(row.maximum_minor)) })) });
   } catch (error) { return fail(res, error); }
@@ -494,6 +495,7 @@ app.post('/api/admin/plans', async (req, res: SessionResponse) => {
       p_roi_rate_bps: Math.round(Number(body.roi_percent || 0) * 100),
       p_roi_interval_hours: Number(body.roi_interval_hours || 24),
       p_settlement_asset_code: String(body.settlement_asset_code || 'USD'),
+      p_country_code: body.country_code ? String(body.country_code).trim().toUpperCase() : null,
       p_performance_methodology: String(body.performance_methodology ?? ''),
       p_risk_disclosure: String(body.risk_disclosure ?? ''),
       p_active: body.active !== false,

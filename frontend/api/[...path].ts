@@ -21,7 +21,7 @@ export default async function handler(req:any,res:any){
     if(authError||!authData.user)return res.status(401).json({error:'Invalid session'});
     const user=authData.user;
     const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:`Bearer ${token}`}}});
-    const {data:member,error:memberError}=await db.from('profiles').select('status').eq('id',user.id).maybeSingle();
+    const {data:member,error:memberError}=await db.from('profiles').select('status,country').eq('id',user.id).maybeSingle();
     if(memberError)return fail(res,memberError);
     if(member?.status==='suspended')return res.status(403).json({error:'Account is suspended'});
 
@@ -74,7 +74,9 @@ export default async function handler(req:any,res:any){
       if(error)throw error;return res.json({data:{...data,email:user.email}});
     }
     if(route==='investment-plans'){
-      const {data,error}=await db.from('investment_plans').select('id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,performance_methodology,risk_disclosure').eq('active',true).eq('settlement_asset_code','USD').order('minimum_minor');
+      const country=String(member?.country||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+      const countryFilter=country?`country_code.is.null,country_code.eq.${country}`:'country_code.is.null';
+      const {data,error}=await db.from('investment_plans').select('id,name,minimum_minor,maximum_minor,duration_days,fee_bps,roi_rate_bps,roi_interval_hours,settlement_asset_code,country_code,performance_methodology,risk_disclosure').eq('active',true).or(countryFilter).order('minimum_minor');
       if(error)throw error;return res.json({data:(data??[]).map((r:any)=>({...r,minimum:amount(minor(r.minimum_minor)),maximum:r.maximum_minor==null?null:amount(minor(r.maximum_minor))}))});
     }
     if(route.startsWith('admin/'))return res.status(503).json({error:'Admin management service is not configured'});
