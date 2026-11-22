@@ -47707,9 +47707,11 @@ if (url && anonKey) {
 }
 var fail = (res, error) => {
   const code = error?.code;
+  const message = error?.message;
   if (code === "PGRST202" || code === "42883") {
     return res.status(503).json({ error: "A required database function is missing. Run the latest Supabase migration." });
   }
+  if (code === "P0001" && message) return res.status(400).json({ error: message });
   console.error("API request failed:", error);
   return res.status(500).json({ error: "Unable to load requested data" });
 };
