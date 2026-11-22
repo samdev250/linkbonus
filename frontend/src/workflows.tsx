@@ -37,7 +37,7 @@ export function InvestPage({data,money,token,onChoose,onDirectBonus}:any){
   useEffect(()=>{load()},[token]);
   return <>
     <ReturnStrip returns={returns} money={money}/>
-    {burundi&&<div className="section-heading"><div><h2>Received Bonus</h2><p>Review the LINK BONUS details for Burundi members.</p></div><button className="outline-button" onClick={onDirectBonus}><Gift size={16}/> Direct Bonus</button></div>}
+    {burundi&&<div className="section-heading"><div><h2>Received Bonus</h2><p>Review the LINK BONUS details for Burundi members.</p></div><button className="outline-button" onClick={onDirectBonus}><Gift size={16}/> View Direct Bonus</button></div>}
     <div className="tabs"> {['Available Plans','My Investments'].map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
     {error&&<div className="notice-banner data-error"><ShieldCheck size={18}/><span><b>Plans unavailable</b><small>{error}</small></span></div>}
     {loading&&<div className="inline-loading"><Loader2 size={15} className="spin"/> Loading plans…</div>}
