@@ -47721,11 +47721,12 @@ var amount = (value) => {
   const abs = value < 0n ? -value : value;
   return `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, "0")}`;
 };
-var bonusAssetForCountry = (country) => {
-  const code = (country ?? "").trim().toUpperCase();
-  if (code === "RW" || code === "RWANDA") return "RWF";
-  if (code === "BI" || code === "BURUNDI") return "BIF";
-  return "USD";
+var parseAmountMinor = (value) => {
+  const amountText = String(value ?? "").trim();
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amountText)) return null;
+  const [whole, fraction = ""] = amountText.split(".");
+  const amountMinor = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+  return amountMinor > 0n && amountMinor <= 9223372036854775807n ? amountMinor : null;
 };
 var currencyForCountry = (country) => {
   const code = (country ?? "").trim().toUpperCase();
@@ -47976,7 +47977,7 @@ app.get("/api/member/dashboard", async (_req, res) => {
       id: row.id,
       label: row.kind.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase()),
       detail: row.description ?? row.asset_code,
-      amount: `${row.kind === "deposit" || row.kind === "referral_commission" || row.kind === "bonus_credit" ? "+" : "\u2212"} ${row.asset_code} ${amount(minor(row.amount_minor))}`,
+      amount: `${row.kind === "deposit" || row.kind === "referral_commission" || row.kind === "bonus_credit" || row.kind === "wallet_credit" ? "+" : "\u2212"} ${row.asset_code} ${amount(minor(row.amount_minor))}`,
       date: row.created_at,
       status: row.status
     }));
@@ -48218,41 +48219,15 @@ app.get("/api/admin/users", async (req, res) => {
     const offset = Math.max(Number(req.query.offset) || 0, 0);
     const { data, error } = await res.locals.db.rpc("admin_list_users", { p_search: search, p_status: status, p_limit: limit, p_offset: offset });
     if (error) return fail(res, error);
-    const rows = data?.rows ?? [];
-    const ownerIds = rows.map((row) => row.id);
-    const accounts = ownerIds.length ? await res.locals.db.from("asset_accounts").select("id,owner_id,asset_code").in("owner_id", ownerIds) : { data: [], error: null };
-    if (accounts.error) return fail(res, accounts.error);
-    const accountRows = accounts.data ?? [];
-    const accountIds = accountRows.map((row) => row.id);
-    const entries = accountIds.length ? await res.locals.db.from("ledger_entries").select("account_id,amount_minor").in("account_id", accountIds) : { data: [], error: null };
-    if (entries.error) return fail(res, entries.error);
-    const balances = /* @__PURE__ */ new Map();
-    for (const entry of entries.data ?? []) {
-      balances.set(entry.account_id, (balances.get(entry.account_id) ?? 0n) + minor(entry.amount_minor));
-    }
-    return res.json({ data: {
-      ...data,
-      rows: rows.map((row) => {
-        const assetCode = bonusAssetForCountry(row.country ?? void 0);
-        const account = accountRows.find((item) => item.owner_id === row.id && item.asset_code === assetCode);
-        return { ...row, balance_asset_code: assetCode, balance_minor: account ? String(balances.get(account.id) ?? 0n) : "0" };
-      })
-    } });
+    return res.json({ data });
   } catch (error) {
     return fail(res, error);
   }
 });
 app.post("/api/admin/users/:id/bonus", async (req, res) => {
   try {
-    const amountText = String(req.body?.amount ?? "").trim();
-    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amountText)) {
-      return res.status(400).json({ error: "Enter a positive amount with up to two decimal places" });
-    }
-    const [whole, fraction = ""] = amountText.split(".");
-    const amountMinor = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
-    if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
-      return res.status(400).json({ error: "Bonus amount is outside the supported range" });
-    }
+    const amountMinor = parseAmountMinor(req.body?.amount);
+    if (amountMinor === null) return res.status(400).json({ error: "Enter a positive amount up to two decimal places" });
     const requestId = String(req.body?.request_id ?? "");
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
       return res.status(400).json({ error: "Invalid bonus request identifier" });
@@ -48263,6 +48238,27 @@ app.post("/api/admin/users/:id/bonus", async (req, res) => {
       p_asset_code: String(req.body?.asset_code ?? ""),
       p_reason: String(req.body?.reason ?? ""),
       p_idempotency_key: `admin-bonus:${requestId.toLowerCase()}`
+    });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/users/:id/wallet-credit", async (req, res) => {
+  try {
+    const amountMinor = parseAmountMinor(req.body?.amount);
+    if (amountMinor === null) return res.status(400).json({ error: "Enter a positive amount up to two decimal places" });
+    const requestId = String(req.body?.request_id ?? "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      return res.status(400).json({ error: "Invalid wallet credit request identifier" });
+    }
+    const { data, error } = await res.locals.db.rpc("admin_credit_wallet", {
+      p_user_id: req.params.id,
+      p_amount_minor: amountMinor.toString(),
+      p_asset_code: String(req.body?.asset_code ?? ""),
+      p_reason: String(req.body?.reason ?? ""),
+      p_idempotency_key: `admin-wallet:${requestId.toLowerCase()}`
     });
     if (error) return fail(res, error);
     return res.status(201).json({ data });
