@@ -47721,6 +47721,12 @@ var amount = (value) => {
   const abs = value < 0n ? -value : value;
   return `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, "0")}`;
 };
+var bonusAssetForCountry = (country) => {
+  const code = (country ?? "").trim().toUpperCase();
+  if (code === "RW" || code === "RWANDA") return "RWF";
+  if (code === "BI" || code === "BURUNDI") return "BIF";
+  return "USD";
+};
 var currencyForCountry = (country) => {
   const code = (country ?? "").trim().toUpperCase();
   if (code === "RW" || code === "RWANDA") return "RWF";
@@ -47943,31 +47949,34 @@ app.use("/api", async (req, res, next) => {
 app.get("/api/member/dashboard", async (_req, res) => {
   try {
     const db = res.locals.db;
-    const [profile, profileCountry, accounts, tx, investments, commissions] = await Promise.all([
+    const [profile, profileCountry, accounts, tx, investments, commissions, bonusCredits] = await Promise.all([
       db.from("profiles").select("full_name,country,phone,verification_status,referral_code").eq("id", res.locals.user.id).maybeSingle(),
       db.from("profiles").select("country").eq("id", res.locals.user.id).maybeSingle(),
       db.from("asset_accounts").select("id,asset_code").eq("owner_id", res.locals.user.id),
       db.from("ledger_transactions").select("id,kind,status,amount_minor,asset_code,description,created_at").eq("owner_id", res.locals.user.id).order("created_at", { ascending: false }).limit(5),
       db.from("investments").select("principal_minor,asset_code,status").eq("owner_id", res.locals.user.id).in("status", ["active", "pending"]),
-      db.from("referral_commissions").select("amount_minor,status").eq("referrer_id", res.locals.user.id)
+      db.from("referral_commissions").select("amount_minor,status").eq("referrer_id", res.locals.user.id),
+      db.from("ledger_transactions").select("amount_minor,asset_code").eq("owner_id", res.locals.user.id).eq("kind", "bonus_credit").eq("status", "completed")
     ]);
-    for (const result of [profile, accounts, tx, investments, commissions]) if (result.error) throw result.error;
+    for (const result of [profile, accounts, tx, investments, commissions, bonusCredits]) if (result.error) throw result.error;
     const accountRows = accounts.data ?? [];
     const accountIds = accountRows.map((row) => row.id);
     const entries = accountIds.length ? await db.from("ledger_entries").select("account_id,amount_minor").in("account_id", accountIds) : { data: [], error: null };
     if (entries.error) throw entries.error;
     const balances = /* @__PURE__ */ new Map();
     for (const row of entries.data ?? []) balances.set(row.account_id, (balances.get(row.account_id) ?? 0n) + minor(row.amount_minor));
-    const currency = currencyForCountry(res.locals.user.country || profileCountry.data?.country);
+    const preferredCurrency = currencyForCountry(profileCountry.data?.country || res.locals.user.country);
+    const currency = accountRows.some((row) => row.asset_code === preferredCurrency) ? preferredCurrency : "USD";
     const availableBalance = accountRows.filter((row) => row.asset_code === currency).reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
     const invested = (investments.data ?? []).filter((row) => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
     const credited = (commissions.data ?? []).filter((row) => row.status === "credited").reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const pending = (commissions.data ?? []).filter((row) => row.status === "pending").reduce((sum, row) => sum + minor(row.amount_minor), 0n);
+    const bonus = (bonusCredits.data ?? []).filter((row) => row.asset_code === currency).reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const transactions = (tx.data ?? []).map((row) => ({
       id: row.id,
       label: row.kind.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase()),
       detail: row.description ?? row.asset_code,
-      amount: `${row.kind === "deposit" || row.kind === "referral_commission" ? "+" : "\u2212"} ${row.asset_code} ${amount(minor(row.amount_minor))}`,
+      amount: `${row.kind === "deposit" || row.kind === "referral_commission" || row.kind === "bonus_credit" ? "+" : "\u2212"} ${row.asset_code} ${amount(minor(row.amount_minor))}`,
       date: row.created_at,
       status: row.status
     }));
@@ -47983,7 +47992,7 @@ app.get("/api/member/dashboard", async (_req, res) => {
       currency,
       available: amount(availableBalance),
       invested: amount(invested),
-      bonus: amount(0n),
+      bonus: amount(bonus),
       referrals: amount(credited),
       pendingReferrals: amount(pending),
       portfolio: amount(availableBalance + invested),
@@ -48209,7 +48218,54 @@ app.get("/api/admin/users", async (req, res) => {
     const offset = Math.max(Number(req.query.offset) || 0, 0);
     const { data, error } = await res.locals.db.rpc("admin_list_users", { p_search: search, p_status: status, p_limit: limit, p_offset: offset });
     if (error) return fail(res, error);
-    return res.json({ data });
+    const rows = data?.rows ?? [];
+    const ownerIds = rows.map((row) => row.id);
+    const accounts = ownerIds.length ? await res.locals.db.from("asset_accounts").select("id,owner_id,asset_code").in("owner_id", ownerIds) : { data: [], error: null };
+    if (accounts.error) return fail(res, accounts.error);
+    const accountRows = accounts.data ?? [];
+    const accountIds = accountRows.map((row) => row.id);
+    const entries = accountIds.length ? await res.locals.db.from("ledger_entries").select("account_id,amount_minor").in("account_id", accountIds) : { data: [], error: null };
+    if (entries.error) return fail(res, entries.error);
+    const balances = /* @__PURE__ */ new Map();
+    for (const entry of entries.data ?? []) {
+      balances.set(entry.account_id, (balances.get(entry.account_id) ?? 0n) + minor(entry.amount_minor));
+    }
+    return res.json({ data: {
+      ...data,
+      rows: rows.map((row) => {
+        const assetCode = bonusAssetForCountry(row.country ?? void 0);
+        const account = accountRows.find((item) => item.owner_id === row.id && item.asset_code === assetCode);
+        return { ...row, balance_asset_code: assetCode, balance_minor: account ? String(balances.get(account.id) ?? 0n) : "0" };
+      })
+    } });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/users/:id/bonus", async (req, res) => {
+  try {
+    const amountText = String(req.body?.amount ?? "").trim();
+    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amountText)) {
+      return res.status(400).json({ error: "Enter a positive amount with up to two decimal places" });
+    }
+    const [whole, fraction = ""] = amountText.split(".");
+    const amountMinor = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+    if (amountMinor <= 0n || amountMinor > 9223372036854775807n) {
+      return res.status(400).json({ error: "Bonus amount is outside the supported range" });
+    }
+    const requestId = String(req.body?.request_id ?? "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      return res.status(400).json({ error: "Invalid bonus request identifier" });
+    }
+    const { data, error } = await res.locals.db.rpc("admin_credit_bonus", {
+      p_user_id: req.params.id,
+      p_amount_minor: amountMinor.toString(),
+      p_asset_code: String(req.body?.asset_code ?? ""),
+      p_reason: String(req.body?.reason ?? ""),
+      p_idempotency_key: `admin-bonus:${requestId.toLowerCase()}`
+    });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
   } catch (error) {
     return fail(res, error);
   }
