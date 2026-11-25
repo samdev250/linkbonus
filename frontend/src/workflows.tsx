@@ -34,22 +34,40 @@ export function InvestPage({data,money,returns:dashboardReturns,token,onChoose,o
   const [returns,setReturns]=useState<any>(null);
   const [proofs,setProofs]=useState<any[]>([]);
   const [loading,setLoading]=useState(false);
-  const [error,setError]=useState('');
-  const load=async()=>{setLoading(true);setError('');try{const [p,i,r,pr]=await Promise.all([client(token,'/investment-plans'),client(token,'/member/investments'),client(token,'/member/returns'),client(token,'/member/payment-proofs')]);setPlans(p as any[]);setRows(i as any[]);setReturns(r);setProofs(pr as any[])}catch(e){setError(e instanceof Error?e.message:'Could not load plans')}finally{setLoading(false)}};
+  const [errors,setErrors]=useState<Record<string,string>>({});
+  const load=async()=>{
+    setLoading(true);
+    const results=await Promise.allSettled([
+      client(token,'/investment-plans'),
+      client(token,'/member/investments'),
+      client(token,'/member/returns'),
+      client(token,'/member/payment-proofs'),
+    ]);
+    const nextErrors:Record<string,string>={};
+    const message=(reason:unknown)=>reason instanceof Error?reason.message:'Request failed';
+    const [planResult,investmentResult,returnsResult,proofsResult]=results;
+    if(planResult.status==='fulfilled')setPlans(planResult.value as any[]);else nextErrors.plans=message(planResult.reason);
+    if(investmentResult.status==='fulfilled')setRows(investmentResult.value as any[]);else nextErrors.investments=message(investmentResult.reason);
+    if(returnsResult.status==='fulfilled')setReturns(returnsResult.value);else nextErrors.returns=message(returnsResult.reason);
+    if(proofsResult.status==='fulfilled')setProofs(proofsResult.value as any[]);else nextErrors.proofs=message(proofsResult.reason);
+    setErrors(nextErrors);
+    setLoading(false);
+  };
   useEffect(()=>{load()},[token]);
+  const errorLabels:Record<string,string>={plans:'Investment plans',investments:'Your investments',returns:'Return summary',proofs:'Payment proofs'};
   return <>
     <ReturnStrip returns={dashboardReturns??returns} money={money}/>
     {burundi&&<div className="section-heading"><div><h2>Received Bonus</h2><p>Review the LINK BONUS details for Burundi members.</p></div><button className="outline-button" onClick={onDirectBonus}><Gift size={16}/> View Direct Bonus</button></div>}
+    {Object.entries(errors).map(([key,message])=><div className="notice-banner data-error" key={key}><ShieldCheck size={18}/><span><b>{errorLabels[key]||'Investment data'} unavailable</b><small>{message}</small></span></div>)}
     <div className="tabs"> {['Available Plans','My Investments'].map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
-    {error&&<div className="notice-banner data-error"><ShieldCheck size={18}/><span><b>Plans unavailable</b><small>{error}</small></span></div>}
-    {loading&&<div className="inline-loading"><Loader2 size={15} className="spin"/> Loading plans…</div>}
+    {loading&&<div className="inline-loading"><Loader2 size={15} className="spin"/> Loading investment data…</div>}
     {tab==='Available Plans'?<>
       <div className="notice-banner"><ShieldCheck size={19}/><span><b>Investment plans</b><small>Each plan shows its own daily income rate and credit cycle. Your plan activates automatically once your payment proof is verified.</small></span><span className="status-tag">PLAN RATES</span></div>
       <div className="plan-grid">{plans.map((p,i)=>{const rate=Number(p.roi_rate_bps||DAILY_RATE_BPS);return <article className="plan-card" key={p.id}><div className="plan-top"><span className={`plan-symbol ps${i%4}`}><TrendingUp size={18}/></span><span className="status-tag">{p.duration_days?`${p.duration_days} DAYS`:'FLEXIBLE'}</span></div><h3>{p.name}</h3><div className="plan-details"><span>Daily income <b>{rate/100}% · {minorMoney(Number(p.minimum_minor)*rate/10000,money,p.settlement_asset_code)}</b></span><span>Credit cycle <b>Every {p.roi_interval_hours||24}h</b></span><span>Starts <b>After verification</b></span><span>Duration <b>{p.duration_days?`${p.duration_days} days`:'Flexible'}</b></span></div><button className="plan-button" onClick={()=>onChoose({...p,amount:Number(p.minimum_minor)/100})}>Choose plan <ArrowRight size={15}/></button></article>})}</div>
-      {!loading&&!plans.length&&<section className="panel empty-state"><span><TrendingUp/></span><h2>No plans are open yet</h2><p>Administration will publish the available plans shortly.</p></section>}
+      {!loading&&!errors.plans&&!plans.length&&<section className="panel empty-state"><span><TrendingUp/></span><h2>No plans are open yet</h2><p>Administration will publish the available plans shortly.</p></section>}
     </>:<>
-      <section className="panel table-panel"><div className="panel-heading"><div><h2>My investments</h2><p>Active positions and their calculated returns.</p></div></div><div className="workflow-table"><div className="workflow-head"><span>Plan</span><span>Principal</span><span>Daily return</span><span>Credited</span><span>Next credit</span><span>Status</span></div>{rows.map(r=><div className="workflow-row" key={r.id}><b>{r.plan}</b><span>{minorMoney(r.principal_minor,money,r.asset_code)}</span><span>{minorMoney(Number(r.principal_minor)*Number(r.rate_bps)/10000,money,r.asset_code)}</span><span>{minorMoney(r.paid_minor,money,r.asset_code)}</span><span>{dateLabel(r.next_roi_at)}</span><span className={`status-tag ${r.status==='active'?'':'muted'}`}>{r.status}</span></div>)}{!rows.length&&!loading&&<div className="admin-empty-row">No investments yet.</div>}</div></section>
-      <section className="panel table-panel"><div className="panel-heading"><div><h2>Payment proof submissions</h2><p>Track the deposits you sent for review.</p></div></div><div className="workflow-table"><div className="workflow-head"><span>Reference</span><span>Amount</span><span>Submitted</span><span>Status</span><span>Note</span></div>{proofs.map(p=><div className="workflow-row" key={p.id}><b>{p.provider_reference||p.id.slice(0,8)}</b><span>{minorMoney(p.amount_minor,money,p.asset_code)}</span><span>{dateLabel(p.created_at)}</span><span className={`status-tag ${p.status==='approved'?'':'muted'}`}>{p.status}</span><span>{p.rejection_reason||'—'}</span></div>)}{!proofs.length&&!loading&&<div className="admin-empty-row">No proof submissions yet.</div>}</div></section>
+      <section className="panel table-panel"><div className="panel-heading"><div><h2>My investments</h2><p>Active positions and their calculated returns.</p></div></div><div className="workflow-table"><div className="workflow-head"><span>Plan</span><span>Principal</span><span>Daily return</span><span>Credited</span><span>Next credit</span><span>Status</span></div>{rows.map(r=><div className="workflow-row" key={r.id}><b>{r.plan}{r.creation_source==='admin'&&<small>Admin-created</small>}</b><span>{minorMoney(r.principal_minor,money,r.asset_code)}</span><span>{minorMoney(Number(r.principal_minor)*Number(r.rate_bps)/10000,money,r.asset_code)}</span><span>{minorMoney(r.paid_minor,money,r.asset_code)}</span><span>{dateLabel(r.next_roi_at)}</span><span className={`status-tag ${r.status==='active'?'':'muted'}`}>{r.status}</span></div>)}{!rows.length&&!loading&&!errors.investments&&<div className="admin-empty-row">No investments yet.</div>}</div></section>
+      <section className="panel table-panel"><div className="panel-heading"><div><h2>Payment proof submissions</h2><p>Track the deposits you sent for review.</p></div></div><div className="workflow-table"><div className="workflow-head"><span>Reference</span><span>Amount</span><span>Submitted</span><span>Status</span><span>Note</span></div>{proofs.map(p=><div className="workflow-row" key={p.id}><b>{p.provider_reference||p.id.slice(0,8)}</b><span>{minorMoney(p.amount_minor,money,p.asset_code)}</span><span>{dateLabel(p.created_at)}</span><span className={`status-tag ${p.status==='approved'?'':'muted'}`}>{p.status}</span><span>{p.rejection_reason||'—'}</span></div>)}{!proofs.length&&!loading&&!errors.proofs&&<div className="admin-empty-row">No proof submissions yet.</div>}</div></section>
     </>}
   </>;
 }

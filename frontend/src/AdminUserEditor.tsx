@@ -1,5 +1,5 @@
 import {useEffect,useState,type FormEvent} from 'react';
-import {Check,Coins,Wallet,X} from 'lucide-react';
+import {Check,Coins,TrendingUp,Wallet,X} from 'lucide-react';
 import countryToCurrency from 'country-to-currency';
 import {CountrySelect} from './CountrySelect';
 
@@ -33,8 +33,12 @@ type Values = {
 type Props = {
   user:User;
   saving:boolean;
+  plans:any[];
+  plansLoading:boolean;
+  plansError:string;
   onClose:()=>void;
   onSave:(values:Values)=>Promise<void>;
+  onCreateInvestment:(values:{plan_id:string;amount:string;request_id:string})=>Promise<void>;
 };
 
 const amountFromMinor=(value:string|number)=>{
@@ -52,7 +56,7 @@ const formatMoney=(value:string|number,asset:string)=>{
 };
 const formatDate=(value:string)=>value?new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(value)):'—';
 
-export function AdminUserEditor({user,saving,onClose,onSave}:Props){
+export function AdminUserEditor({user,saving,plans,plansLoading,plansError,onClose,onSave,onCreateInvestment}:Props){
   const [values,setValues]=useState<Values>({
     full_name:user.name||'',
     country:user.country||'',
@@ -63,7 +67,23 @@ export function AdminUserEditor({user,saving,onClose,onSave}:Props){
     bonus_target:amountFromMinor(user.bonus_minor),
   });
   const [error,setError]=useState('');
+  const [investmentPlanId,setInvestmentPlanId]=useState('');
+  const [investmentAmount,setInvestmentAmount]=useState('');
+  const [investmentRequestId,setInvestmentRequestId]=useState(()=>crypto.randomUUID());
+  const [investmentError,setInvestmentError]=useState('');
+  const availablePlans=plans.filter(plan=>plan.active&&(!plan.country_code||plan.country_code.toUpperCase()===String(user.country||'').toUpperCase()));
+  const selectedPlan=availablePlans.find(plan=>plan.id===investmentPlanId);
   const currencyChanged=assetForCountry(values.country)!==user.balance_asset_code;
+
+  useEffect(()=>{
+    if(!availablePlans.some(plan=>plan.id===investmentPlanId)){
+      const first=availablePlans[0];
+      if((first?.id||'')===investmentPlanId)return;
+      setInvestmentPlanId(first?.id||'');
+      setInvestmentAmount(first?(Number(first.minimum_minor||0)/100).toFixed(2):'');
+      setInvestmentRequestId(crypto.randomUUID());
+    }
+  },[availablePlans,investmentPlanId]);
 
   useEffect(()=>{
     const closeOnEscape=(event:KeyboardEvent)=>{
@@ -79,6 +99,12 @@ export function AdminUserEditor({user,saving,onClose,onSave}:Props){
     setError('');
     try{await onSave(values)}
     catch(reason){setError(reason instanceof Error?reason.message:'Could not update this user')}
+  };
+  const submitInvestment=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    setInvestmentError('');
+    try{await onCreateInvestment({plan_id:investmentPlanId,amount:investmentAmount,request_id:investmentRequestId})}
+    catch(reason){setInvestmentError(reason instanceof Error?reason.message:'Could not create this investment')}
   };
 
   return <div className="modal-backdrop admin-user-editor-backdrop" onClick={()=>!saving&&onClose()}>
@@ -122,6 +148,23 @@ export function AdminUserEditor({user,saving,onClose,onSave}:Props){
           <button type="button" className="outline-button" disabled={saving} onClick={onClose}>Cancel</button>
           <button type="submit" className="primary compact" disabled={saving}><Check size={15}/>{saving?'Saving…':'Save changes'}</button>
         </footer>
+      </form>
+      <form className="admin-user-editor-investment" onSubmit={submitInvestment}>
+        <div>
+          <h3>Create an investment</h3>
+          <p>This creates a clearly admin-attributed investment, debits the member's existing wallet, and does not create a referral bonus.</p>
+        </div>
+        <div className="admin-user-editor-investment-fields">
+          <label><span>Plan</span><select required value={investmentPlanId} disabled={saving||plansLoading||currencyChanged||!availablePlans.length} onChange={event=>{const plan=availablePlans.find(row=>row.id===event.target.value);setInvestmentPlanId(event.target.value);setInvestmentAmount(plan?(Number(plan.minimum_minor||0)/100).toFixed(2):'');setInvestmentRequestId(crypto.randomUUID())}}>
+            <option value="">{plansLoading?'Loading plans…':'Choose a plan'}</option>
+            {availablePlans.map(plan=><option key={plan.id} value={plan.id}>{plan.name} · {plan.settlement_asset_code} · min {Number(plan.minimum_minor||0)/100}</option>)}
+          </select></label>
+          <label><span>Amount{selectedPlan?` (${selectedPlan.settlement_asset_code})`:''}</span><input required type="number" min={selectedPlan?Number(selectedPlan.minimum_minor)/100:0.01} max={selectedPlan?.maximum_minor?Number(selectedPlan.maximum_minor)/100:undefined} step="0.01" value={investmentAmount} disabled={saving||plansLoading||currencyChanged||!selectedPlan} onChange={event=>{setInvestmentAmount(event.target.value);setInvestmentRequestId(crypto.randomUUID())}}/></label>
+        </div>
+        {(plansError||!plansLoading&&!availablePlans.length)&&<p className="admin-user-editor-note">{plansError||"No active investment plans are available for this member's country."}</p>}
+        {currencyChanged&&<p className="admin-user-editor-note">Save the country change before creating an investment for the new country.</p>}
+        {investmentError&&<div className="admin-user-editor-error" role="alert">{investmentError}</div>}
+        <div className="admin-user-editor-investment-actions"><button type="submit" className="outline-button" disabled={saving||plansLoading||currencyChanged||!selectedPlan}><TrendingUp size={15}/>{saving?'Creating…':'Create investment'}</button></div>
       </form>
     </section>
   </div>;

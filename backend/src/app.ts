@@ -33,6 +33,9 @@ const fail = (res: Response, error: unknown) => {
   if (code === 'PGRST202' || code === '42883') {
     return res.status(503).json({ error: 'A required database function is missing. Run the latest Supabase migration.' });
   }
+  if (code === '42703' || code === 'PGRST204') {
+    return res.status(503).json({ error: 'The database schema is missing required fields. Apply the latest Supabase migrations.' });
+  }
   if (code === 'P0001' && message) return res.status(400).json({ error: message });
   console.error('API request failed:', error);
   return res.status(500).json({ error: 'Unable to load requested data' });
@@ -158,7 +161,7 @@ app.get('/api/member/wallet', async (_req, res: SessionResponse) => {
 
 app.get('/api/member/investments', async (_req, res: SessionResponse) => {
   try {
-    const { data, error } = await res.locals.db.from('investments').select('id,principal_minor,asset_code,status,created_at,roi_rate_bps,total_roi_paid_minor,next_roi_at,investment_plans(name)').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false });
+    const { data, error } = await res.locals.db.from('investments').select('id,principal_minor,asset_code,status,created_at,roi_rate_bps,total_roi_paid_minor,next_roi_at,creation_source,investment_plans(name)').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false });
     if (error) throw error;
     return res.json({ data: (data ?? []).map(row => ({
       id: row.id,
@@ -169,6 +172,7 @@ app.get('/api/member/investments', async (_req, res: SessionResponse) => {
       rate_bps: row.roi_rate_bps,
       paid_minor: row.total_roi_paid_minor,
       next_roi_at: row.next_roi_at,
+      creation_source: row.creation_source,
       principal: amount(minor(row.principal_minor)),
     })) });
   } catch (error) { return fail(res, error); }
@@ -430,6 +434,28 @@ app.patch('/api/admin/users/:id', async (req, res: SessionResponse) => {
   } catch (error) { return fail(res, error); }
 });
 
+app.post('/api/admin/users/:id/investments', async (req, res: SessionResponse) => {
+  try {
+    const principalMinor = parseAmountMinor(req.body?.amount);
+    if (principalMinor === null) {
+      return res.status(400).json({ error: 'Enter a positive investment amount up to two decimal places' });
+    }
+    const planId = String(req.body?.plan_id ?? '');
+    const requestId = String(req.body?.request_id ?? '');
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidPattern.test(planId)) return res.status(400).json({ error: 'Choose a valid investment plan' });
+    if (!uuidPattern.test(requestId)) return res.status(400).json({ error: 'Invalid investment request identifier' });
+    const { data, error } = await res.locals.db.rpc('admin_create_investment', {
+      p_user_id: req.params.id,
+      p_plan_id: planId,
+      p_principal_minor: principalMinor.toString(),
+      p_request_id: requestId.toLowerCase(),
+    });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
+  } catch (error) { return fail(res, error); }
+});
+
 app.post('/api/admin/users/:id/status', async (req, res: SessionResponse) => {
   try {
     const { data, error } = await res.locals.db.rpc('admin_set_user_status', {
@@ -473,7 +499,7 @@ app.get('/api/admin/transactions', async (req, res: SessionResponse) => {
 app.get('/api/admin/investments', async (_req, res: SessionResponse) => {
   try {
     const { data, error } = await res.locals.db.from('investments')
-      .select('id,principal_minor,asset_code,status,created_at,owner_id,investment_plans(name)')
+      .select('id,principal_minor,asset_code,status,created_at,owner_id,creation_source,investment_plans(name)')
       .order('created_at', { ascending: false }).limit(200);
     if (error) return fail(res, error);
     const rows = data ?? [];
@@ -488,6 +514,7 @@ app.get('/api/admin/investments', async (_req, res: SessionResponse) => {
       amount: amount(minor(row.principal_minor)), principal_minor: row.principal_minor,
       asset_code: row.asset_code,
       status: row.status,
+      creation_source: row.creation_source,
       date: row.created_at,
     })) });
   } catch (error) { return fail(res, error); }
