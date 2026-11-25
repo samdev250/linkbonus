@@ -1,5 +1,6 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {Check,Coins,Wallet,X} from 'lucide-react';
+import countryToCurrency from 'country-to-currency';
 import {CountrySelect} from './CountrySelect';
 
 type User = {
@@ -27,7 +28,6 @@ type Values = {
   verification_status:string;
   wallet_target:string;
   bonus_target:string;
-  reason:string;
 };
 
 type Props = {
@@ -43,7 +43,8 @@ const amountFromMinor=(value:string|number)=>{
 };
 const assetForCountry=(country:string)=>{
   const code=country.trim().toUpperCase();
-  return code==='RW'||code==='RWANDA'?'RWF':code==='BI'||code==='BURUNDI'?'BIF':'USD';
+  const countryCode=code==='RWANDA'?'RW':code==='BURUNDI'?'BI':code;
+  return countryToCurrency[countryCode as keyof typeof countryToCurrency]??'USD';
 };
 const formatMoney=(value:string|number,asset:string)=>{
   const minor=BigInt(String(value||0));
@@ -60,7 +61,6 @@ export function AdminUserEditor({user,saving,onClose,onSave}:Props){
     verification_status:user.verification_status||'unverified',
     wallet_target:amountFromMinor(user.balance_minor),
     bonus_target:amountFromMinor(user.bonus_minor),
-    reason:'',
   });
   const [error,setError]=useState('');
   const currencyChanged=assetForCountry(values.country)!==user.balance_asset_code;
@@ -116,8 +116,7 @@ export function AdminUserEditor({user,saving,onClose,onSave}:Props){
           <label><span><Wallet size={14}/> Wallet balance ({user.balance_asset_code})</span><input required type="number" min="0" step="0.01" value={values.wallet_target} disabled={currencyChanged} onChange={event=>update('wallet_target',event.target.value)}/></label>
           <label><span><Coins size={14}/> Received bonus ({user.balance_asset_code})</span><input required type="number" min="0" step="0.01" value={values.bonus_target} disabled={currencyChanged} onChange={event=>update('bonus_target',event.target.value)}/></label>
         </div>
-        {currencyChanged&&<p className="admin-user-editor-note">Save the country change first. Reopen this form to update financial amounts in the new account currency.</p>}
-        <label className="admin-user-editor-reason"><span>Reason for update</span><textarea required maxLength={500} value={values.reason} onChange={event=>update('reason',event.target.value)} placeholder="Add a short reason for the audit record"/></label>
+        {currencyChanged&&<p className="admin-user-editor-note">Save the country change first, then reopen to edit the new local-currency balance. Existing balances stay in their original currency; no exchange conversion is applied.</p>}
         {error&&<div className="admin-user-editor-error" role="alert">{error}</div>}
         <footer className="admin-user-editor-actions">
           <button type="button" className="outline-button" disabled={saving} onClick={onClose}>Cancel</button>

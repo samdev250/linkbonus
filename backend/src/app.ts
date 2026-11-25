@@ -50,30 +50,12 @@ const parseAmountMinor = (value: unknown, allowZero = false) => {
   const amountMinor = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
   return (allowZero ? amountMinor >= 0n : amountMinor > 0n) && amountMinor <= 9223372036854775807n ? amountMinor : null;
 };
-const currencyForCountry = (country?: string) => {
+const countryCurrencyMap = import('country-to-currency').then(module => module.default);
+const currencyForCountry = async (country?: string) => {
   const code = (country ?? '').trim().toUpperCase();
-  if (code === 'RW' || code === 'RWANDA') return 'RWF';
-  if (code === 'BI' || code === 'BURUNDI') return 'BIF';
-  const currencies: Record<string, string> = {
-    US: 'USD', CA: 'CAD', BM: 'BMD', GL: 'DKK', MX: 'MXN', BZ: 'BZD', CR: 'CRC', SV: 'USD', GT: 'GTQ', HN: 'HNL', NI: 'NIO', PA: 'PAB',
-    AR: 'ARS', BO: 'BOB', BR: 'BRL', CL: 'CLP', CO: 'COP', EC: 'USD', GY: 'GYD', PY: 'PYG', PE: 'PEN', SR: 'SRD', UY: 'UYU', VE: 'VES',
-    GB: 'GBP', IE: 'EUR', AT: 'EUR', BE: 'EUR', CY: 'EUR', DE: 'EUR', EE: 'EUR', ES: 'EUR', FI: 'EUR', FR: 'EUR', GR: 'EUR', HR: 'EUR',
-    IT: 'EUR', LT: 'EUR', LU: 'EUR', LV: 'EUR', MC: 'EUR', ME: 'EUR', MT: 'EUR', NL: 'EUR', PT: 'EUR', SI: 'EUR', SK: 'EUR', VA: 'EUR',
-    CH: 'CHF', LI: 'CHF', DK: 'DKK', FO: 'DKK', NO: 'NOK', SJ: 'NOK', SE: 'SEK', IS: 'ISK', PL: 'PLN', CZ: 'CZK', HU: 'HUF', RO: 'RON',
-    BG: 'BGN', AL: 'ALL', BA: 'BAM', BY: 'BYN', MD: 'MDL', MK: 'MKD', RS: 'RSD', RU: 'RUB', UA: 'UAH', TR: 'TRY', GE: 'GEL', AM: 'AMD',
-    KE: 'KES', UG: 'UGX', TZ: 'TZS', NG: 'NGN', GH: 'GHS', ZA: 'ZAR', ZM: 'ZMW', MW: 'MWK', ET: 'ETB', EG: 'EGP', MA: 'MAD',
-    KM: 'KMF', DJ: 'DJF', ER: 'ERN', MG: 'MGA', MU: 'MUR', MZ: 'MZN', SC: 'SCR', SO: 'SOS', SS: 'SSP', SD: 'SDG',
-    BJ: 'XOF', BF: 'XOF', CI: 'XOF', GN: 'GNF', GW: 'XOF', ML: 'XOF', NE: 'XOF', SN: 'XOF', TG: 'XOF', CV: 'CVE', GM: 'GMD', LR: 'LRD', SL: 'SLE',
-    AO: 'AOA', CM: 'XAF', CF: 'XAF', TD: 'XAF', CG: 'XAF', CD: 'CDF', GQ: 'XAF', GA: 'XAF', ST: 'STN', DZ: 'DZD', LY: 'LYD', TN: 'TND',
-    BW: 'BWP', LS: 'LSL', NA: 'NAD', SZ: 'SZL', ZW: 'ZWG',
-    AU: 'AUD', NZ: 'NZD', FJ: 'FJD', PG: 'PGK', SB: 'SBD', VU: 'VUV', WS: 'WST', TO: 'TOP', TV: 'AUD', KI: 'AUD', NR: 'AUD',
-    CN: 'CNY', HK: 'HKD', JP: 'JPY', MO: 'MOP', MN: 'MNT', KR: 'KRW', TW: 'TWD', SG: 'SGD', MY: 'MYR', ID: 'IDR', PH: 'PHP', TH: 'THB',
-    VN: 'VND', KH: 'KHR', LA: 'LAK', MM: 'MMK', BN: 'BND', IN: 'INR', PK: 'PKR', BD: 'BDT', LK: 'LKR', NP: 'NPR', AF: 'AFN', MV: 'MVR',
-    KZ: 'KZT', KG: 'KGS', TJ: 'TJS', TM: 'TMT', UZ: 'UZS', IL: 'ILS', JO: 'JOD', LB: 'LBP', SY: 'SYP', IQ: 'IQD', IR: 'IRR', SA: 'SAR',
-    AE: 'AED', QA: 'QAR', BH: 'BHD', KW: 'KWD', OM: 'OMR', YE: 'YER', AZ: 'AZN',
-    BB: 'BBD', JM: 'JMD', TT: 'TTD', DO: 'DOP', HT: 'HTG', CU: 'CUP', BS: 'BSD', AW: 'AWG', BQ: 'USD', KY: 'KYD', GD: 'XCD',
-  };
-  return currencies[code] ?? 'USD';
+  const countryCode = code === 'RWANDA' ? 'RW' : code === 'BURUNDI' ? 'BI' : code;
+  const mapping = await countryCurrencyMap;
+  return mapping[countryCode as keyof typeof mapping] ?? 'USD';
 };
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', database: authClient ? 'configured' : 'not_configured', mode: 'test' }));
@@ -120,9 +102,13 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     if (entries.error) throw entries.error;
     const balances = new Map<string, bigint>();
     for (const row of entries.data ?? []) balances.set(row.account_id, (balances.get(row.account_id) ?? 0n) + minor(row.amount_minor));
-    const preferredCurrency = currencyForCountry(profile.data?.country || res.locals.user.country);
-    const currency = accountRows.some(row => row.asset_code === preferredCurrency) ? preferredCurrency : 'USD';
+    const preferredCurrency = await currencyForCountry(profile.data?.country || res.locals.user.country);
+    if (!accountRows.some(row => row.asset_code === preferredCurrency)) {
+      throw new Error(`Missing ${preferredCurrency} wallet. Apply the local-currency migration.`);
+    }
+    const currency = preferredCurrency;
     const availableBalance = accountRows.filter(row => row.asset_code === currency).reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
+    const assetBalances = accountRows.map(row => ({ asset: row.asset_code, balance: amount(balances.get(row.id) ?? 0n) }));
     const invested = (investments.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
     const credited = (commissions.data ?? []).filter(row => row.status === 'credited').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const pending = (commissions.data ?? []).filter(row => row.status === 'pending').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
@@ -142,7 +128,7 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
       name, email: res.locals.user.email ?? '', currency,
       available: amount(availableBalance), invested: amount(invested), bonus: amount(bonus),
       referrals: amount(credited), pendingReferrals: amount(pending),
-      portfolio: amount(availableBalance + invested), transactions,
+      portfolio: amount(availableBalance + invested), assetBalances, transactions,
       profile: profile.data ?? null, verifiedPerformance: false, returns: roiData ?? null,
     } });
   } catch (error) { return fail(res, error); }
@@ -172,25 +158,35 @@ app.get('/api/member/wallet', async (_req, res: SessionResponse) => {
 
 app.get('/api/member/investments', async (_req, res: SessionResponse) => {
   try {
-    const { data, error } = await res.locals.db.from('investments').select('id,principal_minor,asset_code,status,created_at,investment_plans(name,duration_days,fee_bps,risk_disclosure,performance_methodology)').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false });
+    const { data, error } = await res.locals.db.from('investments').select('id,principal_minor,asset_code,status,created_at,roi_rate_bps,total_roi_paid_minor,next_roi_at,investment_plans(name)').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false });
     if (error) throw error;
-    return res.json({ data: (data ?? []).map(row => ({ ...row, principal: amount(minor(row.principal_minor)) })) });
+    return res.json({ data: (data ?? []).map(row => ({
+      id: row.id,
+      plan: row.investment_plans?.[0]?.name ?? 'Investment',
+      principal_minor: row.principal_minor,
+      asset_code: row.asset_code,
+      status: row.status,
+      rate_bps: row.roi_rate_bps,
+      paid_minor: row.total_roi_paid_minor,
+      next_roi_at: row.next_roi_at,
+      principal: amount(minor(row.principal_minor)),
+    })) });
   } catch (error) { return fail(res, error); }
 });
 
 app.get('/api/member/referrals', async (_req, res: SessionResponse) => {
   try {
-    const [profile, commissions, summary] = await Promise.all([
+    const [profile, summary] = await Promise.all([
       res.locals.db.from('profiles').select('referral_code').eq('id', res.locals.user.id).maybeSingle(),
-      res.locals.db.from('referral_commissions').select('id,invitee_id,amount_minor,status,created_at,credited_at').eq('referrer_id', res.locals.user.id).order('created_at', { ascending: false }),
       res.locals.db.rpc('member_referral_summary'),
     ]);
-    for (const result of [profile, commissions, summary]) if (result.error) throw result.error;
-    const rows = commissions.data ?? [];
+    for (const result of [profile, summary]) if (result.error) throw result.error;
+    const rows = summary.data?.commission_rows;
+    if (!Array.isArray(rows)) throw new Error('Currency-aware referral summary is unavailable. Run the latest Supabase migration.');
     return res.json({ data: {
       referralCode: profile.data?.referral_code ?? null,
       summary: summary.data,
-      commissions: rows.map(row => ({ ...row, amount: amount(minor(row.amount_minor)) })),
+      commissions: rows.map((row: any) => ({ ...row, amount: `${row.asset_code} ${amount(minor(row.amount_minor))}` })),
     } });
   } catch (error) { return fail(res, error); }
 });
@@ -426,7 +422,7 @@ app.patch('/api/admin/users/:id', async (req, res: SessionResponse) => {
       p_asset_code: String(req.body?.asset_code ?? ''),
       p_wallet_target_minor: walletTargetMinor.toString(),
       p_bonus_target_minor: bonusTargetMinor.toString(),
-      p_reason: String(req.body?.reason ?? ''),
+      p_reason: String(req.body?.reason ?? 'Admin user update'),
       p_request_id: requestId.toLowerCase(),
     });
     if (error) return fail(res, error);
