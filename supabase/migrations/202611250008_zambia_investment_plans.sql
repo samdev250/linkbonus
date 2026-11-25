@@ -1,0 +1,42 @@
+insert into public.investment_plans (
+  name, minimum_minor, maximum_minor, roi_rate_bps, roi_interval_hours,
+  duration_days, active, settlement_asset_code, country_code,
+  performance_methodology, risk_disclosure, updated_at
+)
+values
+  ('ZMW 500',       50000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 1,000',    100000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 1,500',    150000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 2,000',    200000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 2,500',    250000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 3,000',    300000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 3,500',    350000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 4,000',    400000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 4,500',    450000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 5,000',    500000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 6,000',    600000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 7,000',    700000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 8,000',    800000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 9,000',    900000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 10,000',  1000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 20,000',  2000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 30,000',  3000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 40,000',  4000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 50,000',  5000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 60,000',  6000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 70,000',  7000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 80,000',  8000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 90,000',  9000000,      null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now()),
+  ('ZMW 100,000', 10000000,     null, 500, 24, 30, true, 'ZMW', 'ZM', '5% daily income calculated from your active principal every 24 hours.', '', now())
+on conflict (name) do update set
+  minimum_minor = excluded.minimum_minor,
+  maximum_minor = excluded.maximum_minor,
+  roi_rate_bps = excluded.roi_rate_bps,
+  roi_interval_hours = excluded.roi_interval_hours,
+  duration_days = excluded.duration_days,
+  active = true,
+  settlement_asset_code = 'ZMW',
+  country_code = 'ZM',
+  performance_methodology = excluded.performance_methodology,
+  risk_disclosure = excluded.risk_disclosure,
+  updated_at = now();
