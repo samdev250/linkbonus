@@ -18,6 +18,7 @@
 .proof-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.proof-fields label,.proof-note{display:grid;gap:5px;font-size:10px;font-weight:700;color:#5d6d84}
 .proof-fields input,.proof-note textarea{border:1px solid #dfe6ef;border-radius:7px;padding:8px 9px;font-size:10px;color:#33445a;background:#fff}.proof-note{margin-top:11px}.proof-note textarea{min-height:58px;resize:vertical}
 .proof-preview{display:flex;align-items:center;gap:7px;margin-top:10px;color:#0f8d86;font-size:10px}.proof-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.proof-preview-backdrop{z-index:20;padding:clamp(10px,4vw,36px)}.proof-preview-modal{width:min(100%,1000px);padding:16px}.proof-preview-modal .modal-head{align-items:center;margin-bottom:12px}.proof-preview-modal .modal-head h2{color:#172948}.proof-preview-image{display:block;width:100%;max-height:calc(100vh - 140px);object-fit:contain;background:#081932;border-radius:8px}
 .proof-actions a{color:#1769e8;text-decoration:none}.proof-actions .text-button{display:inline-flex;align-items:center;gap:4px}
 @media(max-width:900px){.return-strip,.return-main,.workflow-head,.workflow-row{grid-template-columns:1fr}.return-stat{padding-left:0;border-left:0;border-top:1px solid #dce6f3;padding-top:10px}.proof-fields{grid-template-columns:1fr 1fr}.invite-row{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.proof-fields{grid-template-columns:1fr}.return-strip{padding:14px}.workflow-head{display:none}.workflow-row{border-bottom:1px solid #edf1f7}}
