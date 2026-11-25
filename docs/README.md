@@ -38,6 +38,8 @@ If Services are unavailable on the Vercel account:
 
 The latest database migration enables the `pg_cron` extension and schedules due investment-return credits to run every minute. Apply it with `supabase db push`; without that migration, returns are only synchronized when a member opens or refreshes the dashboard.
 
+The admin Users Update form sets wallet and bonus totals through audited ledger entries. Invested, referral and portfolio totals are calculated from their underlying records, while registration time remains read-only. Apply `202611250004_admin_user_account_updates.sql` before using the updated form.
+
 The first migration creates profiles, empty asset accounts, row-level security and read-only member access. The second migration stores signup country and phone. The Auth trigger assigns `referred_by` by looking up the invitation code supplied at signup; invalid or absent codes create an un-referred account. Sample plans are inactive and contain no live financial terms.
 
 ## Local development

@@ -43,12 +43,12 @@ const amount = (value: bigint) => {
   const abs = value < 0n ? -value : value;
   return `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`;
 };
-const parseAmountMinor = (value: unknown) => {
+const parseAmountMinor = (value: unknown, allowZero = false) => {
   const amountText = String(value ?? '').trim();
   if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amountText)) return null;
   const [whole, fraction = ''] = amountText.split('.');
   const amountMinor = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
-  return amountMinor > 0n && amountMinor <= 9223372036854775807n ? amountMinor : null;
+  return (allowZero ? amountMinor >= 0n : amountMinor > 0n) && amountMinor <= 9223372036854775807n ? amountMinor : null;
 };
 const currencyForCountry = (country?: string) => {
   const code = (country ?? '').trim().toUpperCase();
@@ -111,12 +111,12 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
       db.from('ledger_transactions').select('id,kind,status,amount_minor,asset_code,description,created_at').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false }).limit(5),
       db.from('investments').select('principal_minor,asset_code,status').eq('owner_id', res.locals.user.id).in('status', ['active','pending']),
       db.from('referral_commissions').select('amount_minor,status').eq('referrer_id', res.locals.user.id),
-      db.from('ledger_transactions').select('amount_minor,asset_code').eq('owner_id', res.locals.user.id).eq('kind', 'bonus_credit').eq('status', 'completed'),
+      db.from('ledger_transactions').select('id,kind').eq('owner_id', res.locals.user.id).in('kind', ['bonus_credit','bonus_debit']).eq('status', 'completed'),
     ]);
     for (const result of [profile, accounts, tx, investments, commissions, bonusCredits]) if (result.error) throw result.error;
     const accountRows = accounts.data ?? [];
     const accountIds = accountRows.map(row => row.id);
-    const entries = accountIds.length ? await db.from('ledger_entries').select('account_id,amount_minor').in('account_id', accountIds) : { data: [], error: null };
+    const entries = accountIds.length ? await db.from('ledger_entries').select('account_id,amount_minor,transaction_id').in('account_id', accountIds) : { data: [], error: null };
     if (entries.error) throw entries.error;
     const balances = new Map<string, bigint>();
     for (const row of entries.data ?? []) balances.set(row.account_id, (balances.get(row.account_id) ?? 0n) + minor(row.amount_minor));
@@ -126,7 +126,10 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     const invested = (investments.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
     const credited = (commissions.data ?? []).filter(row => row.status === 'credited').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const pending = (commissions.data ?? []).filter(row => row.status === 'pending').reduce((sum, row) => sum + minor(row.amount_minor), 0n);
-    const bonus = (bonusCredits.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.amount_minor), 0n);
+    const bonusTransactionIds = new Set((bonusCredits.data ?? []).map(row => row.id));
+    const currencyAccountIds = new Set(accountRows.filter(row => row.asset_code === currency).map(row => row.id));
+    const bonus = (entries.data ?? []).filter(row => currencyAccountIds.has(row.account_id) && bonusTransactionIds.has(row.transaction_id))
+      .reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const transactions = (tx.data ?? []).map(row => ({
       id: row.id, label: row.kind.replaceAll('_', ' ').replace(/\b\w/g, (char: string) => char.toUpperCase()),
       detail: row.description ?? row.asset_code, amount: `${row.kind === 'deposit' || row.kind === 'referral_commission' || row.kind === 'bonus_credit' || row.kind === 'wallet_credit' ? '+' : '−'} ${row.asset_code} ${amount(minor(row.amount_minor))}`,
@@ -404,12 +407,27 @@ app.post('/api/admin/users', async (req, res) => {
 
 app.patch('/api/admin/users/:id', async (req, res: SessionResponse) => {
   try {
-    const { data, error } = await res.locals.db.rpc('admin_update_user', {
+    const walletTargetMinor = parseAmountMinor(req.body?.wallet_target, true);
+    const bonusTargetMinor = parseAmountMinor(req.body?.bonus_target, true);
+    if (walletTargetMinor === null || bonusTargetMinor === null) {
+      return res.status(400).json({ error: 'Enter valid wallet and bonus totals with up to two decimal places' });
+    }
+    const requestId = String(req.body?.request_id ?? '');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      return res.status(400).json({ error: 'Invalid user update request identifier' });
+    }
+    const { data, error } = await res.locals.db.rpc('admin_update_user_account', {
       p_id: req.params.id,
       p_full_name: String(req.body?.full_name ?? ''),
       p_country: String(req.body?.country ?? ''),
       p_phone: String(req.body?.phone ?? ''),
       p_status: String(req.body?.status ?? 'active'),
+      p_verification_status: String(req.body?.verification_status ?? 'unverified'),
+      p_asset_code: String(req.body?.asset_code ?? ''),
+      p_wallet_target_minor: walletTargetMinor.toString(),
+      p_bonus_target_minor: bonusTargetMinor.toString(),
+      p_reason: String(req.body?.reason ?? ''),
+      p_request_id: requestId.toLowerCase(),
     });
     if (error) return fail(res, error);
     return res.json({ data });
