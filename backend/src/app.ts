@@ -103,9 +103,10 @@ app.use('/api', async (req: Request, res: SessionResponse, next: NextFunction) =
 app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
   try {
     const db = res.locals.db;
-    const [profile, profileCountry, accounts, tx, investments, commissions, bonusCredits] = await Promise.all([
+    const { error: syncError } = await db.rpc('member_sync_roi', { p_limit: 20 });
+    if (syncError) throw syncError;
+    const [profile, accounts, tx, investments, commissions, bonusCredits] = await Promise.all([
       db.from('profiles').select('full_name,country,phone,verification_status,referral_code').eq('id', res.locals.user.id).maybeSingle(),
-      db.from('profiles').select('country').eq('id', res.locals.user.id).maybeSingle(),
       db.from('asset_accounts').select('id,asset_code').eq('owner_id', res.locals.user.id),
       db.from('ledger_transactions').select('id,kind,status,amount_minor,asset_code,description,created_at').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false }).limit(5),
       db.from('investments').select('principal_minor,asset_code,status').eq('owner_id', res.locals.user.id).in('status', ['active','pending']),
@@ -119,7 +120,7 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
     if (entries.error) throw entries.error;
     const balances = new Map<string, bigint>();
     for (const row of entries.data ?? []) balances.set(row.account_id, (balances.get(row.account_id) ?? 0n) + minor(row.amount_minor));
-    const preferredCurrency = currencyForCountry(profileCountry.data?.country || res.locals.user.country);
+    const preferredCurrency = currencyForCountry(profile.data?.country || res.locals.user.country);
     const currency = accountRows.some(row => row.asset_code === preferredCurrency) ? preferredCurrency : 'USD';
     const availableBalance = accountRows.filter(row => row.asset_code === currency).reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
     const invested = (investments.data ?? []).filter(row => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
@@ -131,8 +132,8 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
       detail: row.description ?? row.asset_code, amount: `${row.kind === 'deposit' || row.kind === 'referral_commission' || row.kind === 'bonus_credit' || row.kind === 'wallet_credit' ? '+' : '−'} ${row.asset_code} ${amount(minor(row.amount_minor))}`,
       date: row.created_at, status: row.status,
     }));
-    try { await db.rpc('member_sync_roi', { p_limit: 20 }); } catch {}
-    const { data: roiData } = await db.rpc('member_roi_summary');
+    const { data: roiData, error: roiError } = await db.rpc('member_roi_summary');
+    if (roiError) throw roiError;
     const name = profile.data?.full_name || res.locals.user.email?.split('@')[0] || 'Member';
     return res.json({ data: {
       name, email: res.locals.user.email ?? '', currency,
@@ -215,7 +216,10 @@ app.get('/api/investment-plans', async (_req, res: SessionResponse) => {
 
 app.get('/api/member/returns', async (_req, res: SessionResponse) => {
   try {
-    const { data, error } = await res.locals.db.rpc('member_roi_summary');
+    const db = res.locals.db;
+    const { error: syncError } = await db.rpc('member_sync_roi', { p_limit: 20 });
+    if (syncError) throw syncError;
+    const { data, error } = await db.rpc('member_roi_summary');
     if (error) return fail(res, error);
     return res.json({ data });
   } catch (error) { return fail(res, error); }

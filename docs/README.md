@@ -36,6 +36,8 @@ If Services are unavailable on the Vercel account:
 4. In Supabase Auth, configure email confirmation and add the local and production frontend URLs to the allowed site and redirect URL lists.
 5. Use the project's URL and publishable key in the frontend and API. Never put a secret/service-role key in frontend variables.
 
+The latest database migration enables the `pg_cron` extension and schedules due investment-return credits to run every minute. Apply it with `supabase db push`; without that migration, returns are only synchronized when a member opens or refreshes the dashboard.
+
 The first migration creates profiles, empty asset accounts, row-level security and read-only member access. The second migration stores signup country and phone. The Auth trigger assigns `referred_by` by looking up the invitation code supplied at signup; invalid or absent codes create an un-referred account. Sample plans are inactive and contain no live financial terms.
 
 ## Local development

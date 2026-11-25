@@ -24,7 +24,7 @@ export function ReturnStrip({returns,money}:any){
   </section>;
 }
 
-export function InvestPage({data,money,token,onChoose,onDirectBonus}:any){
+export function InvestPage({data,money,returns:dashboardReturns,token,onChoose,onDirectBonus}:any){
   const burundi=isBurundi(data?.profile?.country,data?.currency);
   const [tab,setTab]=useState('Available Plans');
   const [plans,setPlans]=useState<any[]>([]);
@@ -36,7 +36,7 @@ export function InvestPage({data,money,token,onChoose,onDirectBonus}:any){
   const load=async()=>{setLoading(true);setError('');try{const [p,i,r,pr]=await Promise.all([client(token,'/investment-plans'),client(token,'/member/investments'),client(token,'/member/returns'),client(token,'/member/payment-proofs')]);setPlans(p as any[]);setRows(i as any[]);setReturns(r);setProofs(pr as any[])}catch(e){setError(e instanceof Error?e.message:'Could not load plans')}finally{setLoading(false)}};
   useEffect(()=>{load()},[token]);
   return <>
-    <ReturnStrip returns={returns} money={money}/>
+    <ReturnStrip returns={dashboardReturns??returns} money={money}/>
     {burundi&&<div className="section-heading"><div><h2>Received Bonus</h2><p>Review the LINK BONUS details for Burundi members.</p></div><button className="outline-button" onClick={onDirectBonus}><Gift size={16}/> View Direct Bonus</button></div>}
     <div className="tabs"> {['Available Plans','My Investments'].map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
     {error&&<div className="notice-banner data-error"><ShieldCheck size={18}/><span><b>Plans unavailable</b><small>{error}</small></span></div>}
