@@ -537,6 +537,40 @@ app.post('/api/admin/users/:id/investments', async (req, res: SessionResponse) =
   } catch (error) { return fail(res, error); }
 });
 
+app.get('/api/admin/users/:id/investments', async (req, res: SessionResponse) => {
+  try {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidPattern.test(req.params.id)) return res.status(400).json({ error: 'Invalid user identifier' });
+    const requestedLimit = Math.trunc(Number(req.query.limit));
+    const requestedOffset = Math.trunc(Number(req.query.offset));
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit || 10, 1), 100) : 10;
+    const offset = Number.isSafeInteger(requestedOffset) ? Math.min(Math.max(requestedOffset, 0), 2147483647) : 0;
+    const { data, error, count } = await res.locals.db.from('investments')
+      .select('id,principal_minor,asset_code,status,created_at,creation_source,admin_funding_method,investment_plans(name)', { count: 'exact' })
+      .eq('owner_id', req.params.id)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) return fail(res, error);
+    return res.json({ data: {
+      rows: (data ?? []).map(row => ({
+        id: row.id,
+        plan: (row as any).investment_plans?.name ?? 'Plan',
+        amount: amount(minor(row.principal_minor)),
+        principal_minor: row.principal_minor,
+        asset_code: row.asset_code,
+        status: row.status,
+        creation_source: row.creation_source,
+        admin_funding_method: row.admin_funding_method,
+        date: row.created_at,
+      })),
+      total: count ?? 0,
+      limit,
+      offset,
+    } });
+  } catch (error) { return fail(res, error); }
+});
+
 app.post('/api/admin/users/:id/status', async (req, res: SessionResponse) => {
   try {
     const { data, error } = await res.locals.db.rpc('admin_set_user_status', {
