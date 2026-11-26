@@ -211,29 +211,49 @@ export function AdminWithdrawalMinimums({token,toast}:any){
 export function WithdrawalForm({token,data,money,supportEmail,onDone,onCancel}:any){
   const [minimum,setMinimum]=useState<any>(null);
   const [minimumError,setMinimumError]=useState('');
+  const [accountError,setAccountError]=useState('');
+  const [accountLoading,setAccountLoading]=useState(true);
   const [source,setSource]=useState('wallet');
   const [amount,setAmount]=useState('');
   const [payoutMethod,setPayoutMethod]=useState('mobile_money');
   const [provider,setProvider]=useState('');
   const [accountName,setAccountName]=useState('');
   const [accountNumber,setAccountNumber]=useState('');
+  const [saveAccount,setSaveAccount]=useState(false);
   const [requestId]=useState(()=>crypto.randomUUID());
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const sources=[
-    {id:'wallet',label:'Wallet balance',available:Number(data.available)||0,request:true},
+    {id:'wallet',label:'Wallet balance',available:Number(data.available)||0,detail:'Available to request'},
     {id:'referrals',label:'Referral commissions',available:Number(data.referrals)||0},
     {id:'bonus',label:'Bonuses',available:Number(data.bonus)||0},
     {id:'returns',label:'Investment returns',available:Number(data.returns?.paid_minor||0)/100},
-    {id:'other',label:'Other / ask administration',available:null},
+    {id:'other',label:'Other',available:null,detail:'Ask support'},
   ];
   const selectedSource=sources.find(item=>item.id===source)||sources[0];
   const minimumAmount=Number(minimum?.minimum_minor||0)/100;
+  const changePayoutMethod=(method:string)=>{
+    if(method===payoutMethod)return;
+    setPayoutMethod(method);
+    setProvider('');
+    setAccountNumber('');
+  };
   useEffect(()=>{
     let cancelled=false;
     client(token,'/member/withdrawal-minimum')
       .then(result=>{if(!cancelled)setMinimum(result)})
       .catch(reason=>{if(!cancelled)setMinimumError(reason instanceof Error?reason.message:'Could not load the withdrawal minimum')});
+    client(token,'/member/withdrawal-account')
+      .then((account:any)=>{
+        if(cancelled||!account)return;
+        setPayoutMethod(account.payout_method);
+        setProvider(account.payout_provider);
+        setAccountName(account.payout_account_name);
+        setAccountNumber(account.payout_account_number);
+        setSaveAccount(true);
+      })
+      .catch(reason=>{if(!cancelled)setAccountError(reason instanceof Error?reason.message:'Could not load saved payout details')})
+      .finally(()=>{if(!cancelled)setAccountLoading(false)});
     return()=>{cancelled=true};
   },[token]);
   const submit=async(event:React.FormEvent<HTMLFormElement>)=>{
@@ -251,7 +271,15 @@ export function WithdrawalForm({token,data,money,supportEmail,onDone,onCancel}:a
 
     setBusy(true);
     try{
-      if(selectedSource.request){
+      if(saveAccount){
+        await client(token,'/member/withdrawal-account',{method:'PUT',body:JSON.stringify({
+          payout_method:payoutMethod,
+          payout_provider:provider.trim(),
+          payout_account_name:accountName.trim(),
+          payout_account_number:accountNumber.trim(),
+        })});
+      }
+      if(source==='wallet'){
         await client(token,'/member/withdrawals',{method:'POST',body:JSON.stringify({
           request_id:requestId,
           amount_minor:amountMinor,
@@ -262,7 +290,7 @@ export function WithdrawalForm({token,data,money,supportEmail,onDone,onCancel}:a
           payout_account_number:accountNumber.trim(),
         })});
         window.dispatchEvent(new Event('member-withdrawal-updated'));
-        onDone('Withdrawal request submitted for admin approval. Your wallet balance will only be deducted if it is approved.');
+        onDone('Withdrawal request submitted. Your balance changes when it is completed.');
       }else{
         const subject=`Withdrawal support request: ${selectedSource.label}`;
         const body=[
@@ -276,26 +304,27 @@ export function WithdrawalForm({token,data,money,supportEmail,onDone,onCancel}:a
           `Account number/phone: ${accountNumber.trim()}`,
         ].join('\n');
         window.location.href=`mailto:${encodeURIComponent(supportEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        onDone('Withdrawal support email draft opened. Send it to submit your request.');
+        onDone('Support email draft opened. Send it to submit your request.');
       }
     }catch(reason){setError(reason instanceof Error?reason.message:'Could not submit withdrawal request')}
     finally{setBusy(false)}
   };
   const minimumLoading=!minimum&&!minimumError;
   return <form className="settings-form withdrawal-request-form" onSubmit={submit}>
-    <div className="settings-form-title"><b>Withdrawal request</b><small>Choose the funds and payout destination. Wallet requests require admin approval; no balance is deducted while pending.</small></div>
-    {minimumError&&<div className="notice-banner data-error settings-wide" role="alert"><ShieldCheck size={18}/><span><b>Minimum withdrawal unavailable</b><small>{minimumError}</small></span></div>}
-    {minimum?.configured===false&&<div className="notice-banner data-error settings-wide" role="alert"><ShieldCheck size={18}/><span><b>Withdrawal not configured</b><small>A minimum withdrawal amount has not been configured for your country yet. Please contact support.</small></span></div>}
-    {minimum?.configured===true&&<div className="notice-banner settings-wide"><ShieldCheck size={18}/><span><b>Minimum withdrawal: {minimum.currency_code} {new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}).format(minimumAmount)}</b><small>Available wallet balance: {money(data.available)}. Pending wallet requests reserve funds but do not reduce your displayed balance.</small></span></div>}
-    <label className="settings-wide"><span>Funds to withdraw</span><select value={source} onChange={event=>setSource(event.target.value)}>{sources.map(item=><option key={item.id} value={item.id}>{item.label}{item.request?' · admin approval':item.id==='other'?' · email support':' · email support'}</option>)}</select></label>
-    <div className="notice-banner settings-wide"><Wallet size={18}/><span><b>{selectedSource.available===null?'Enter the amount you want to request':`Available ${selectedSource.label.toLowerCase()}: ${money(String(selectedSource.available))}`}</b><small>{selectedSource.request?'This amount is checked against your wallet and rechecked when admin approves.':'This request will be sent to administration by email for review.'}</small></span></div>
+    <div className="settings-form-title"><b>Withdraw funds</b><small>Choose an amount and payout destination.</small></div>
+    {minimumError&&<div className="notice-banner data-error settings-wide" role="alert"><ShieldCheck size={18}/><span><b>Minimum unavailable</b><small>{minimumError}</small></span></div>}
+    {minimum?.configured===false&&<div className="notice-banner data-error settings-wide" role="alert"><ShieldCheck size={18}/><span><b>Withdrawals unavailable</b><small>A minimum amount has not been set for your country. Please contact support.</small></span></div>}
+    {minimum?.configured===true&&<div className="notice-banner settings-wide"><ShieldCheck size={18}/><span><b>Minimum: {minimum.currency_code} {new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}).format(minimumAmount)}</b><small>Pending requests do not change your balance.</small></span></div>}
+    {accountError&&<div className="notice-banner data-error settings-wide" role="alert"><ShieldCheck size={18}/><span><b>Saved details unavailable</b><small>You can still enter payout details manually. {accountError}</small></span></div>}
+    <div className="withdrawal-field settings-wide"><span className="withdrawal-field-label">Withdraw from</span><div className="withdrawal-choice-grid" role="group" aria-label="Withdrawal source">{sources.map(item=><button type="button" className={`withdrawal-choice ${source===item.id?'selected':''}`} aria-pressed={source===item.id} key={item.id} onClick={()=>setSource(item.id)}><b>{item.label}</b><small>{item.available===null?item.detail||'Support request':money(String(item.available))}</small></button>)}</div></div>
     <label><span>Amount ({data.currency})</span><input required type="number" min={minimum?.configured?minimumAmount:0.01} max={selectedSource.available===null?undefined:selectedSource.available} step="0.01" value={amount} onChange={event=>setAmount(event.target.value)} placeholder="Enter amount"/></label>
-    <label><span>Payout method</span><select value={payoutMethod} onChange={event=>setPayoutMethod(event.target.value)}><option value="mobile_money">Mobile money</option><option value="bank">Bank transfer</option></select></label>
+    <div className="withdrawal-field"><span className="withdrawal-field-label">Payout method</span><div className="withdrawal-methods" role="group" aria-label="Payout method"><button type="button" className={payoutMethod==='mobile_money'?'selected':''} aria-pressed={payoutMethod==='mobile_money'} onClick={()=>changePayoutMethod('mobile_money')}>Mobile money</button><button type="button" className={payoutMethod==='bank'?'selected':''} aria-pressed={payoutMethod==='bank'} onClick={()=>changePayoutMethod('bank')}>Bank transfer</button></div></div>
     <label><span>{payoutMethod==='mobile_money'?'Mobile-money provider':'Bank name'}</span><input required value={provider} onChange={event=>setProvider(event.target.value)} placeholder={payoutMethod==='mobile_money'?'e.g. MTN, Airtel':'Bank name'}/></label>
     <label><span>Account holder name</span><input required value={accountName} onChange={event=>setAccountName(event.target.value)} placeholder="Name on the account"/></label>
     <label><span>{payoutMethod==='mobile_money'?'Phone number':'Account number'}</span><input required value={accountNumber} onChange={event=>setAccountNumber(event.target.value)} placeholder={payoutMethod==='mobile_money'?'Include country code':'Bank account number'}/></label>
+    <label className="withdrawal-save-account settings-wide"><input type="checkbox" checked={saveAccount} onChange={event=>setSaveAccount(event.target.checked)}/><span><b>Save payout details</b><small>Use this name and account next time.</small></span></label>
     {error&&<div className="form-error settings-wide" role="alert">{error}</div>}
-    <div className="settings-wide withdrawal-form-actions"><button className="primary compact" type="submit" disabled={busy||minimumLoading||minimum?.configured!==true}>{busy?'Submitting…':selectedSource.request?'Submit for admin approval':'Email withdrawal support'}</button><button className="outline-button" type="button" onClick={onCancel}>Cancel</button></div>
+    <div className="settings-wide withdrawal-form-actions"><button className="primary compact" type="submit" disabled={busy||minimumLoading||accountLoading||minimum?.configured!==true}>{busy?'Submitting…':source==='wallet'?'Request withdrawal':'Continue by email'}</button><button className="outline-button" type="button" onClick={onCancel}>Cancel</button></div>
   </form>;
 }
 
@@ -310,11 +339,11 @@ export function MemberWithdrawalHistory({token,money}:any){
     return()=>window.removeEventListener('member-withdrawal-updated',refresh);
   },[token]);
   return <section className="panel table-panel">
-    <div className="panel-heading"><div><h2>Withdrawal requests</h2><p>Wallet withdrawals remain pending until an administrator reviews them.</p></div><button className="outline-button" onClick={()=>void load()}>Refresh</button></div>
+    <div className="panel-heading"><div><h2>Withdrawal requests</h2><p>Track request status and payout details.</p></div><button className="outline-button" onClick={()=>void load()}>Refresh</button></div>
     {error&&<div className="notice-banner data-error" role="alert"><ShieldCheck size={18}/><span><b>Withdrawal history unavailable</b><small>{error}</small></span></div>}
     <div className="workflow-table">
-      <div className="workflow-head withdrawal-history-grid"><span>Requested</span><span>Amount</span><span>Payout destination</span><span>Status</span><span>Admin note</span></div>
-      {rows.map(row=><div className="workflow-row withdrawal-history-grid" key={row.id}><span>{dateLabel(row.created_at)}</span><b>{money(String(Number(row.amount_minor)/100))}</b><span>{row.payout_method==='mobile_money'?'Mobile money':'Bank'} · {row.payout_provider}<small>{row.payout_account_name} · {row.payout_account_number}</small></span><span className={`status-tag ${row.status==='approved'?'':'muted'}`}>{row.status}</span><span>{row.admin_note||'—'}</span></div>)}
+      <div className="workflow-head withdrawal-history-grid"><span>Requested</span><span>Amount</span><span>Payout destination</span><span>Status</span><span>Message</span></div>
+      {rows.map(row=><div className="workflow-row withdrawal-history-grid" key={row.id}><span>{dateLabel(row.created_at)}</span><b>{money(String(Number(row.amount_minor)/100))}</b><span>{row.payout_method==='mobile_money'?'Mobile money':'Bank'} · {row.payout_provider}<small>{row.payout_account_name} · {row.payout_account_number}</small></span><span className={`status-tag ${row.status==='approved'?'':'muted'}`}>{row.status==='approved'?'Completed':row.status==='rejected'?'Cancelled':'Pending'}</span><span>{row.admin_note||'—'}</span></div>)}
       {!rows.length&&!error&&<div className="admin-empty-row">No wallet withdrawal requests yet.</div>}
     </div>
   </section>;

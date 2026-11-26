@@ -48030,15 +48030,16 @@ app.get("/api/member/dashboard", async (_req, res) => {
     const db = res.locals.db;
     const { error: syncError } = await db.rpc("member_sync_roi", { p_limit: 20 });
     if (syncError) throw syncError;
-    const [profile, accounts, tx, investments, commissions, bonusCredits] = await Promise.all([
+    const [profile, accounts, tx, investments, commissions, bonusCredits, withdrawalRequests] = await Promise.all([
       db.from("profiles").select("full_name,country,phone,verification_status,referral_code").eq("id", res.locals.user.id).maybeSingle(),
       db.from("asset_accounts").select("id,asset_code").eq("owner_id", res.locals.user.id),
-      db.from("ledger_transactions").select("id,kind,status,amount_minor,asset_code,description,created_at").eq("owner_id", res.locals.user.id).order("created_at", { ascending: false }).limit(5),
+      db.from("ledger_transactions").select("id,kind,status,amount_minor,asset_code,description,created_at").eq("owner_id", res.locals.user.id).order("created_at", { ascending: false }).limit(10),
       db.from("investments").select("principal_minor,asset_code").eq("owner_id", res.locals.user.id).eq("status", "active"),
       db.from("referral_commissions").select("amount_minor,status").eq("referrer_id", res.locals.user.id),
-      db.from("ledger_transactions").select("id,kind").eq("owner_id", res.locals.user.id).in("kind", ["bonus_credit", "bonus_debit"]).eq("status", "completed")
+      db.from("ledger_transactions").select("id,kind").eq("owner_id", res.locals.user.id).in("kind", ["bonus_credit", "bonus_debit"]).eq("status", "completed"),
+      db.rpc("member_list_withdrawal_requests")
     ]);
-    for (const result of [profile, accounts, tx, investments, commissions, bonusCredits]) if (result.error) throw result.error;
+    for (const result of [profile, accounts, tx, investments, commissions, bonusCredits, withdrawalRequests]) if (result.error) throw result.error;
     const accountRows = accounts.data ?? [];
     const accountIds = accountRows.map((row) => row.id);
     const entries = accountIds.length ? await db.from("ledger_entries").select("account_id,amount_minor,transaction_id").in("account_id", accountIds) : { data: [], error: null };
@@ -48060,7 +48061,8 @@ app.get("/api/member/dashboard", async (_req, res) => {
     const bonusTransactionIds = new Set((bonusCredits.data ?? []).map((row) => row.id));
     const currencyAccountIds = new Set(accountRows.filter((row) => row.asset_code === currency).map((row) => row.id));
     const bonus = (entries.data ?? []).filter((row) => currencyAccountIds.has(row.account_id) && bonusTransactionIds.has(row.transaction_id)).reduce((sum, row) => sum + minor(row.amount_minor), 0n);
-    const transactions = (tx.data ?? []).map((row) => ({
+    const requestTransactionIds = new Set((withdrawalRequests.data ?? []).map((row) => row.transaction_id).filter(Boolean));
+    const ledgerTransactions = (tx.data ?? []).filter((row) => !requestTransactionIds.has(row.id)).map((row) => ({
       id: row.id,
       label: row.kind.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase()),
       detail: row.description ?? row.asset_code,
@@ -48068,6 +48070,17 @@ app.get("/api/member/dashboard", async (_req, res) => {
       date: row.created_at,
       status: row.status
     }));
+    const withdrawalTransactions = (withdrawalRequests.data ?? []).map((row) => ({
+      id: `withdrawal-${row.id}`,
+      kind: "withdrawal",
+      label: row.status === "approved" ? "Withdrawal completed" : row.status === "rejected" ? "Withdrawal cancelled" : "Withdrawal request",
+      detail: `${row.payout_method === "mobile_money" ? "Mobile money" : "Bank"} \xB7 ${row.payout_provider}`,
+      amount: `${row.status === "approved" ? "\u2212 " : ""}${row.asset_code} ${amount(minor(row.amount_minor))}`,
+      date: row.reviewed_at ?? row.created_at,
+      status: row.status === "approved" ? "completed" : row.status === "rejected" ? "cancelled" : "pending",
+      positive: false
+    }));
+    const transactions = [...ledgerTransactions, ...withdrawalTransactions].sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()).slice(0, 5);
     const { data: roiData, error: roiError } = await db.rpc("member_roi_summary");
     if (roiError) throw roiError;
     const name = profile.data?.full_name || res.locals.user.email?.split("@")[0] || "Member";
@@ -48227,6 +48240,37 @@ app.get("/api/member/payment-proofs", async (_req, res) => {
 app.get("/api/member/withdrawal-minimum", async (_req, res) => {
   try {
     const { data, error } = await res.locals.db.rpc("member_get_withdrawal_minimum");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/member/withdrawal-account", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_get_withdrawal_account");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.put("/api/member/withdrawal-account", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const payoutMethod = String(body.payout_method ?? "");
+    const provider = String(body.payout_provider ?? "").trim();
+    const accountName = String(body.payout_account_name ?? "").trim();
+    const accountNumber = String(body.payout_account_number ?? "").trim();
+    if (!["mobile_money", "bank"].includes(payoutMethod) || !provider || !accountName || !accountNumber) {
+      return res.status(400).json({ error: "Complete valid payout details before saving" });
+    }
+    const { data, error } = await res.locals.db.rpc("member_save_withdrawal_account", {
+      p_payout_method: payoutMethod,
+      p_payout_provider: provider,
+      p_payout_account_name: accountName,
+      p_payout_account_number: accountNumber
+    });
     if (error) return fail(res, error);
     return res.json({ data });
   } catch (error) {

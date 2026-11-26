@@ -23,6 +23,21 @@
 @media(max-width:900px){.return-strip,.return-main,.workflow-head,.workflow-row{grid-template-columns:1fr}.return-stat{padding-left:0;border-left:0;border-top:1px solid #dce6f3;padding-top:10px}.proof-fields{grid-template-columns:1fr 1fr}.invite-row{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.proof-fields{grid-template-columns:1fr}.return-strip{padding:14px}.workflow-head{display:none}.workflow-row{border-bottom:1px solid #edf1f7}}
 .withdrawal-request-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.withdrawal-field{display:grid;gap:6px;min-width:0}
+.withdrawal-field-label{color:#5d6d84;font-size:10px;font-weight:700}
+.withdrawal-choice-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.withdrawal-choice,.withdrawal-methods button{min-width:0;border:1px solid #dfe6ef;border-radius:8px;background:#fff;color:#40546e;text-align:left;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s}
+.withdrawal-choice{display:grid;gap:4px;padding:9px 10px}
+.withdrawal-choice b{font-size:10px;color:#29405f}
+.withdrawal-choice small{font-size:9px;color:#6b7b91;overflow-wrap:anywhere}
+.withdrawal-choice.selected,.withdrawal-methods button.selected{border-color:#1769e8;background:#eff6ff;box-shadow:0 0 0 2px #1769e812}
+.withdrawal-methods{display:flex;gap:7px}
+.withdrawal-methods button{flex:1;padding:9px 10px;text-align:center;font-size:10px;font-weight:700}
+.withdrawal-save-account{grid-column:1/-1;display:flex!important;align-items:flex-start;gap:8px;padding:10px 11px;border:1px solid #e2e9f2;border-radius:8px;background:#f8fafd}
+.withdrawal-save-account input{width:auto;margin-top:2px;accent-color:#1769e8}
+.withdrawal-save-account span{display:grid;gap:2px}
+.withdrawal-save-account b{font-size:10px;color:#29405f}
+.withdrawal-save-account small{font-size:9px;color:#6b7b91}
 .withdrawal-request-form .notice-banner{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border:1px solid #dfe9f5;border-radius:9px;background:#f7faff;color:#1769e8}
 .withdrawal-request-form .notice-banner span{display:grid;gap:3px}
 .withdrawal-request-form .notice-banner b{font-size:10px;color:#29405f}
@@ -38,7 +53,7 @@
 .admin-dashboard .admin-withdrawal-grid .proof-actions button{white-space:nowrap}
 .admin-dashboard .table-toolbar p{max-width:680px}
 @media(max-width:900px){.admin-dashboard .admin-withdrawal-grid{grid-template-columns:1fr 1fr}.withdrawal-history-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:600px){.withdrawal-request-form{grid-template-columns:1fr}.withdrawal-form-actions{align-items:stretch;flex-direction:column}.withdrawal-form-actions button{width:100%}.withdrawal-history-grid{grid-template-columns:1fr}.admin-dashboard .admin-withdrawal-grid{grid-template-columns:1fr}.admin-dashboard .admin-withdrawal-grid .proof-actions{grid-column:1/-1}}
+@media(max-width:600px){.withdrawal-request-form{grid-template-columns:1fr}.withdrawal-choice-grid{grid-template-columns:1fr 1fr}.withdrawal-form-actions{align-items:stretch;flex-direction:column}.withdrawal-form-actions button{width:100%}.withdrawal-history-grid{grid-template-columns:1fr}.admin-dashboard .admin-withdrawal-grid{grid-template-columns:1fr}.admin-dashboard .admin-withdrawal-grid .proof-actions{grid-column:1/-1}}
 .admin-logout{display:inline-flex;align-items:center;gap:6px}.notification-wrap{position:relative}.notification-backdrop{position:fixed;inset:0;border:0;background:transparent;z-index:19}.bell-button{position:relative}.bell-badge{position:absolute;top:-5px;right:-6px;min-width:16px;height:16px;border-radius:9px;background:#e5484d;color:#fff;font:700 9px/16px Manrope,sans-serif;text-align:center;padding:0 3px}
 .notification-menu{position:absolute;right:0;top:42px;width:330px;max-height:420px;overflow:auto;background:#fff;border:1px solid #dfe7f2;border-radius:12px;box-shadow:0 18px 45px #10213e24;z-index:20}.notification-head{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-bottom:1px solid #edf1f7}.notification-head b{font-size:13px;color:#1b2d49}.notification-head small{font-size:10px;color:#7f8fa5}
 .notification-item{display:grid;gap:4px;width:100%;padding:11px 14px;border:0;border-bottom:1px solid #f1f4f8;background:#fff;text-align:left}.notification-item.unread{background:#f3f8ff}.notification-item>span{display:flex;justify-content:space-between;gap:8px}.notification-item b{font-size:11px;color:#223754}.notification-item small,.notification-item em{font-size:9px;color:#66768c;font-style:normal}.notification-item p{margin:0;font-size:10px;line-height:1.5;color:#5f7087}.notification-item em{color:#1769e8;font-weight:700}
