@@ -1,4 +1,4 @@
-create table public.withdrawal_requests (
+create table if not exists public.withdrawal_requests (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null unique,
   owner_id uuid not null references public.profiles(id) on delete restrict,
@@ -17,9 +17,9 @@ create table public.withdrawal_requests (
   updated_at timestamptz not null default now()
 );
 
-create index withdrawal_requests_owner_created
+create index if not exists withdrawal_requests_owner_created
   on public.withdrawal_requests(owner_id, created_at desc);
-create index withdrawal_requests_status_created
+create index if not exists withdrawal_requests_status_created
   on public.withdrawal_requests(status, created_at desc);
 
 alter table public.withdrawal_requests enable row level security;
@@ -250,7 +250,8 @@ begin
     raise exception 'Withdrawal request not found';
   end if;
   if v_request.status <> 'pending' then
-    if v_request.status = case when p_action = 'approve' then 'approved' else 'rejected' end then
+    if (p_action = 'approve' and v_request.status = 'approved')
+      or (p_action = 'reject' and v_request.status = 'rejected') then
       return jsonb_build_object(
         'id', v_request.id,
         'status', v_request.status,
