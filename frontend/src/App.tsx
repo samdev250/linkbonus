@@ -178,7 +178,7 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
               :'This investment will stop earning future returns. The verified original principal will be credited back to the wallet. Previously credited returns are retained.'))}</p>
         <form className="admin-investment-modal-form" onSubmit={submitInvestmentChange}>
           {investmentChangeMode==='edit'&&<label><span>New amount ({investmentChange.asset_code})</span><input required type="number" min="0.01" step="0.01" value={investmentChangeAmount} onChange={event=>setInvestmentChangeAmount(event.target.value)}/></label>}
-          <label><span>Reason (required for audit)</span><input required maxLength={500} value={investmentChangeReason} onChange={event=>setInvestmentChangeReason(event.target.value)} placeholder="Explain this investment change"/></label>
+          <label><span>Audit note (optional)</span><input maxLength={500} value={investmentChangeReason} onChange={event=>setInvestmentChangeReason(event.target.value)} placeholder="Optional note; admin and action are recorded automatically"/></label>
           {investmentChangeError&&<div className="admin-user-editor-error" role="alert">{investmentChangeError}</div>}
           <div className="admin-investment-modal-actions">
             <button type="button" className="outline-button" disabled={investmentChangeBusy} onClick={closeInvestmentChange}>Keep investment</button>

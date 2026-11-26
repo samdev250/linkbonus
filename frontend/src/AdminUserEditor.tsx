@@ -267,7 +267,7 @@ export function AdminUserEditor({user,saving,token,plans,plansLoading,plansError
           <label><span><Coins size={14}/> Received bonus ({user.balance_asset_code})</span><input required type="number" min="0" step="0.01" value={values.bonus_target} disabled={currencyChanged} onChange={event=>update('bonus_target',event.target.value)}/></label>
           <label><span><TrendingUp size={14}/> Invested total target ({user.balance_asset_code})</span><input type="number" min="0" step="0.01" value={investedTarget} disabled={saving||currencyChanged} onChange={event=>setInvestedTarget(event.target.value)}/></label>
         </div>
-        <p className="admin-user-editor-note">Wallet changes are recorded in the ledger. The invested total adjustment is audited but does not create a plan-based investment or earn ROI.</p>
+        <p className="admin-user-editor-note">Portfolio is calculated from wallet balance and invested total, then refreshed after each saved action. Wallet changes use the ledger; an invested-total adjustment is audited but does not create an ROI-earning investment.</p>
         {currencyChanged&&<p className="admin-user-editor-note">Save the country change first, then reopen to edit the new local-currency balance. Existing balances stay in their original currency; no exchange conversion is applied.</p>}
         {investedError&&<div className="admin-user-editor-error" role="alert">{investedError}</div>}
         {summaryError&&<div className="admin-user-editor-error" role="alert">{summaryError}</div>}
@@ -302,7 +302,7 @@ export function AdminUserEditor({user,saving,token,plans,plansLoading,plansError
                     :(investment.creation_source==='admin'&&investment.admin_funding_method==='no_wallet_debit'
                       ?'This stops future returns. No refund is issued because this investment did not debit the wallet.'
                       :'This stops future returns and refunds the verified wallet-funded principal. Previously credited returns are retained.')}</p>}
-                <label><span>Reason (required for audit)</span><input required maxLength={500} value={investmentActionReason} onChange={event=>setInvestmentActionReason(event.target.value)} placeholder="Explain this investment change"/></label>
+                <label><span>Audit note (optional)</span><input maxLength={500} value={investmentActionReason} onChange={event=>setInvestmentActionReason(event.target.value)} placeholder="Optional note; admin and action are recorded automatically"/></label>
                 {investmentActionError&&<div className="admin-user-editor-error" role="alert">{investmentActionError}</div>}
                 <div className="admin-user-investment-actions">
                   <button type="button" className="outline-button" disabled={investmentActionBusy} onClick={()=>{setInvestmentAction(null);setInvestmentActionError('')}}>Keep investment</button>
@@ -320,14 +320,14 @@ export function AdminUserEditor({user,saving,token,plans,plansLoading,plansError
       <form className="admin-user-editor-investment" onSubmit={submitInvestment}>
         <div>
           <h3>Create an investment</h3>
-          <p>This creates an admin-attributed investment without debiting the member's wallet or creating a referral bonus.</p>
+          <p>The plan sets the currency and return terms. Admins can set any positive amount without debiting the member's wallet.</p>
         </div>
         <div className="admin-user-editor-investment-fields">
           <label><span>Plan</span><select required value={investmentPlanId} disabled={saving||investmentActionBusy||plansLoading||currencyChanged||!availablePlans.length} onChange={event=>{const plan=availablePlans.find(row=>row.id===event.target.value);setInvestmentPlanId(event.target.value);setInvestmentAmount(plan?(Number(plan.minimum_minor||0)/100).toFixed(2):'');setInvestmentRequestId(crypto.randomUUID())}}>
             <option value="">{plansLoading?'Loading plans…':'Choose a plan'}</option>
-            {availablePlans.map(plan=><option key={plan.id} value={plan.id}>{plan.name} · {plan.settlement_asset_code} · min {Number(plan.minimum_minor||0)/100}</option>)}
+            {availablePlans.map(plan=><option key={plan.id} value={plan.id}>{plan.name} · {plan.settlement_asset_code}</option>)}
           </select></label>
-          <label><span>Amount{selectedPlan?` (${selectedPlan.settlement_asset_code})`:''}</span><input required type="number" min={selectedPlan?Number(selectedPlan.minimum_minor)/100:0.01} max={selectedPlan?.maximum_minor?Number(selectedPlan.maximum_minor)/100:undefined} step="0.01" value={investmentAmount} disabled={saving||investmentActionBusy||plansLoading||currencyChanged||!selectedPlan} onChange={event=>{setInvestmentAmount(event.target.value);setInvestmentRequestId(crypto.randomUUID())}}/></label>
+          <label><span>Amount{selectedPlan?` (${selectedPlan.settlement_asset_code})`:''}</span><input required type="number" min="0.01" step="0.01" value={investmentAmount} disabled={saving||investmentActionBusy||plansLoading||currencyChanged||!selectedPlan} onChange={event=>{setInvestmentAmount(event.target.value);setInvestmentRequestId(crypto.randomUUID())}}/></label>
         </div>
         {(plansError||!plansLoading&&!availablePlans.length)&&<p className="admin-user-editor-note">{plansError||"No active investment plans are available for this member's country."}</p>}
         {currencyChanged&&<p className="admin-user-editor-note">Save the country change before creating an investment for the new country.</p>}

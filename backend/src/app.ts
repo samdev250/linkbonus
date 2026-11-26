@@ -653,8 +653,8 @@ app.patch('/api/admin/investments/:id', async (req, res: SessionResponse) => {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidPattern.test(req.params.id)) return res.status(400).json({ error: 'Invalid investment identifier' });
     if (!uuidPattern.test(requestId)) return res.status(400).json({ error: 'Invalid investment update request identifier' });
-    const reason = String(req.body?.reason ?? '').trim();
-    if (!reason || reason.length > 500) return res.status(400).json({ error: 'Enter a reason of up to 500 characters' });
+    const reason = String(req.body?.reason ?? '').trim() || 'Admin updated investment amount';
+    if (reason.length > 500) return res.status(400).json({ error: 'Audit note must be 500 characters or fewer' });
 
     const { data, error } = await res.locals.db.rpc('admin_update_investment_amount', {
       p_investment_id: req.params.id,
@@ -673,8 +673,8 @@ app.delete('/api/admin/investments/:id', async (req, res: SessionResponse) => {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidPattern.test(req.params.id)) return res.status(400).json({ error: 'Invalid investment identifier' });
     if (!uuidPattern.test(requestId)) return res.status(400).json({ error: 'Invalid investment cancellation request identifier' });
-    const reason = String(req.body?.reason ?? '').trim();
-    if (!reason || reason.length > 500) return res.status(400).json({ error: 'Enter a reason of up to 500 characters' });
+    const reason = String(req.body?.reason ?? '').trim() || 'Admin cancelled investment';
+    if (reason.length > 500) return res.status(400).json({ error: 'Audit note must be 500 characters or fewer' });
 
     const { data, error } = await res.locals.db.rpc('admin_cancel_investment', {
       p_investment_id: req.params.id,

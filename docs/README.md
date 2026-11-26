@@ -52,6 +52,8 @@ Apply `202611260003_admin_manual_referral_commissions.sql` after `202611260002_a
 
 Apply `202611260004_admin_investment_management.sql` after migration 003 to let finance and super-admins edit active or completed investment amounts and cancel pending, active, or completed investments. Amount changes adjust the wallet only when the original investment debit can be verified; cancellation refunds only a verified wallet-funded principal. Pending payment proofs are cancelled with their investment. Investments and prior return credits remain in the financial history, and cancellation stops future returns rather than physically deleting records.
 
+Apply `202611260005_admin_investment_amount_overrides.sql` after migration 004 to let admins set investment amounts without public plan minimum or maximum limits, both when creating an admin-attributed investment and editing an existing one. Amounts must remain positive; plan currency and return terms still apply. Admin increases do not debit the member wallet; when reducing an investment, only its verified wallet-funded portion is refunded. The member editor refreshes invested and portfolio totals after each successful financial action. Investment edit/cancel audit notes are optional in the UI; the API records a default reason when none is entered.
+
 The first migration creates profiles, empty asset accounts, row-level security and read-only member access. The second migration stores signup country and phone. The Auth trigger assigns `referred_by` by looking up the invitation code supplied at signup; invalid or absent codes create an un-referred account. Sample plans are inactive and contain no live financial terms.
 
 ## Local development
