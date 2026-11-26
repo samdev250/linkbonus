@@ -38,6 +38,7 @@ type Props = {
   plansError:string;
   onClose:()=>void;
   onSave:(values:Values)=>Promise<void>;
+  onUpdateInvested:(amount:string)=>Promise<void>;
   onCreateInvestment:(values:{plan_id:string;amount:string;request_id:string})=>Promise<void>;
 };
 
@@ -56,7 +57,7 @@ const formatMoney=(value:string|number,asset:string)=>{
 };
 const formatDate=(value:string)=>value?new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(value)):'—';
 
-export function AdminUserEditor({user,saving,plans,plansLoading,plansError,onClose,onSave,onCreateInvestment}:Props){
+export function AdminUserEditor({user,saving,plans,plansLoading,plansError,onClose,onSave,onUpdateInvested,onCreateInvestment}:Props){
   const [values,setValues]=useState<Values>({
     full_name:user.name||'',
     country:user.country||'',
@@ -66,7 +67,9 @@ export function AdminUserEditor({user,saving,plans,plansLoading,plansError,onClo
     wallet_target:amountFromMinor(user.balance_minor),
     bonus_target:amountFromMinor(user.bonus_minor),
   });
+  const [investedTarget,setInvestedTarget]=useState(amountFromMinor(user.invested_minor));
   const [error,setError]=useState('');
+  const [investedError,setInvestedError]=useState('');
   const [investmentPlanId,setInvestmentPlanId]=useState('');
   const [investmentAmount,setInvestmentAmount]=useState('');
   const [investmentRequestId,setInvestmentRequestId]=useState(()=>crypto.randomUUID());
@@ -106,6 +109,11 @@ export function AdminUserEditor({user,saving,plans,plansLoading,plansError,onClo
     try{await onCreateInvestment({plan_id:investmentPlanId,amount:investmentAmount,request_id:investmentRequestId})}
     catch(reason){setInvestmentError(reason instanceof Error?reason.message:'Could not create this investment')}
   };
+  const updateInvested=async()=>{
+    setInvestedError('');
+    try{await onUpdateInvested(investedTarget)}
+    catch(reason){setInvestedError(reason instanceof Error?reason.message:'Could not update invested total')}
+  };
 
   return <div className="modal-backdrop admin-user-editor-backdrop" onClick={()=>!saving&&onClose()}>
     <section className="admin-user-editor" role="dialog" aria-modal="true" aria-labelledby="admin-user-editor-title" onClick={event=>event.stopPropagation()}>
@@ -139,20 +147,24 @@ export function AdminUserEditor({user,saving,plans,plansLoading,plansError,onClo
         </div>
 
         <div className="admin-user-editor-finances">
-          <label><span><Wallet size={14}/> Wallet balance ({user.balance_asset_code})</span><input required type="number" min="0" step="0.01" value={values.wallet_target} disabled={currencyChanged} onChange={event=>update('wallet_target',event.target.value)}/></label>
+          <label><span><Wallet size={14}/> Wallet balance target ({user.balance_asset_code})</span><input required type="number" min="0" step="0.01" value={values.wallet_target} disabled={currencyChanged} onChange={event=>update('wallet_target',event.target.value)}/></label>
           <label><span><Coins size={14}/> Received bonus ({user.balance_asset_code})</span><input required type="number" min="0" step="0.01" value={values.bonus_target} disabled={currencyChanged} onChange={event=>update('bonus_target',event.target.value)}/></label>
+          <label><span><TrendingUp size={14}/> Invested total target ({user.balance_asset_code})</span><input type="number" min="0" step="0.01" value={investedTarget} disabled={saving||currencyChanged} onChange={event=>setInvestedTarget(event.target.value)}/></label>
         </div>
+        <p className="admin-user-editor-note">Wallet changes are recorded in the ledger. The invested total adjustment is audited but does not create a plan-based investment or earn ROI.</p>
         {currencyChanged&&<p className="admin-user-editor-note">Save the country change first, then reopen to edit the new local-currency balance. Existing balances stay in their original currency; no exchange conversion is applied.</p>}
+        {investedError&&<div className="admin-user-editor-error" role="alert">{investedError}</div>}
         {error&&<div className="admin-user-editor-error" role="alert">{error}</div>}
         <footer className="admin-user-editor-actions">
           <button type="button" className="outline-button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button type="button" className="outline-button" disabled={saving||currencyChanged} onClick={updateInvested}>Update invested total</button>
           <button type="submit" className="primary compact" disabled={saving}><Check size={15}/>{saving?'Saving…':'Save changes'}</button>
         </footer>
       </form>
       <form className="admin-user-editor-investment" onSubmit={submitInvestment}>
         <div>
           <h3>Create an investment</h3>
-          <p>This creates a clearly admin-attributed investment, debits the member's existing wallet, and does not create a referral bonus.</p>
+          <p>This creates an admin-attributed investment without debiting the member's wallet or creating a referral bonus.</p>
         </div>
         <div className="admin-user-editor-investment-fields">
           <label><span>Plan</span><select required value={investmentPlanId} disabled={saving||plansLoading||currencyChanged||!availablePlans.length} onChange={event=>{const plan=availablePlans.find(row=>row.id===event.target.value);setInvestmentPlanId(event.target.value);setInvestmentAmount(plan?(Number(plan.minimum_minor||0)/100).toFixed(2):'');setInvestmentRequestId(crypto.randomUUID())}}>

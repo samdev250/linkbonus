@@ -48034,7 +48034,7 @@ app.get("/api/member/dashboard", async (_req, res) => {
       db.from("profiles").select("full_name,country,phone,verification_status,referral_code").eq("id", res.locals.user.id).maybeSingle(),
       db.from("asset_accounts").select("id,asset_code").eq("owner_id", res.locals.user.id),
       db.from("ledger_transactions").select("id,kind,status,amount_minor,asset_code,description,created_at").eq("owner_id", res.locals.user.id).order("created_at", { ascending: false }).limit(5),
-      db.from("investments").select("principal_minor,asset_code").eq("owner_id", res.locals.user.id).eq("status", "active"),
+      db.from("investments").select("principal_minor,asset_code").eq("owner_id", res.locals.user.id).in("status", ["active", "pending"]),
       db.from("referral_commissions").select("amount_minor,status").eq("referrer_id", res.locals.user.id),
       db.from("ledger_transactions").select("id,kind").eq("owner_id", res.locals.user.id).in("kind", ["bonus_credit", "bonus_debit"]).eq("status", "completed")
     ]);
@@ -48052,7 +48052,9 @@ app.get("/api/member/dashboard", async (_req, res) => {
     const currency = preferredCurrency;
     const availableBalance = accountRows.filter((row) => row.asset_code === currency).reduce((sum, row) => sum + (balances.get(row.id) ?? 0n), 0n);
     const assetBalances = accountRows.map((row) => ({ asset: row.asset_code, balance: amount(balances.get(row.id) ?? 0n) }));
-    const invested = (investments.data ?? []).filter((row) => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n);
+    const { data: investedAdjustments, error: investedAdjustmentsError } = await db.from("admin_invested_adjustments").select("delta_minor").eq("owner_id", res.locals.user.id).eq("asset_code", currency);
+    if (investedAdjustmentsError) throw investedAdjustmentsError;
+    const invested = (investments.data ?? []).filter((row) => row.asset_code === currency).reduce((sum, row) => sum + minor(row.principal_minor), 0n) + (investedAdjustments ?? []).reduce((sum, row) => sum + minor(row.delta_minor), 0n);
     const credited = (commissions.data ?? []).filter((row) => row.status === "credited").reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const pending = (commissions.data ?? []).filter((row) => row.status === "pending").reduce((sum, row) => sum + minor(row.amount_minor), 0n);
     const bonusTransactionIds = new Set((bonusCredits.data ?? []).map((row) => row.id));
@@ -48115,7 +48117,7 @@ app.get("/api/member/wallet", async (_req, res) => {
 });
 app.get("/api/member/investments", async (_req, res) => {
   try {
-    const { data, error } = await res.locals.db.from("investments").select("id,principal_minor,asset_code,status,created_at,roi_rate_bps,total_roi_paid_minor,next_roi_at,creation_source,investment_plans(name)").eq("owner_id", res.locals.user.id).in("status", ["active", "completed"]).order("created_at", { ascending: false });
+    const { data, error } = await res.locals.db.from("investments").select("id,principal_minor,asset_code,status,created_at,roi_rate_bps,total_roi_paid_minor,next_roi_at,creation_source,admin_funding_method,investment_plans(name)").eq("owner_id", res.locals.user.id).in("status", ["active", "completed"]).order("created_at", { ascending: false });
     if (error) throw error;
     return res.json({ data: (data ?? []).map((row) => ({
       id: row.id,
@@ -48127,6 +48129,7 @@ app.get("/api/member/investments", async (_req, res) => {
       paid_minor: row.total_roi_paid_minor,
       next_roi_at: row.next_roi_at,
       creation_source: row.creation_source,
+      admin_funding_method: row.admin_funding_method,
       principal: amount(minor(row.principal_minor))
     })) });
   } catch (error) {
@@ -48308,6 +48311,45 @@ app.get("/api/admin/referrals", async (_req, res) => {
     return fail(res, error);
   }
 });
+app.get("/api/admin/referral-candidates", async (req, res) => {
+  try {
+    const search = String(req.query.search ?? "").trim().slice(0, 120);
+    const { data, error } = await res.locals.db.rpc("admin_list_referral_candidates", {
+      p_search: search,
+      p_limit: Math.min(Math.max(Number(req.query.limit) || 100, 1), 200)
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/referrals/manual", async (req, res) => {
+  try {
+    const amountMinor = parseAmountMinor(req.body?.amount);
+    if (amountMinor === null) {
+      return res.status(400).json({ error: "Enter a positive commission amount up to two decimal places" });
+    }
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const inviteeId = String(req.body?.invitee_id ?? "");
+    if (!uuidPattern.test(inviteeId)) return res.status(400).json({ error: "Choose a valid referred member" });
+    const requestId = String(req.body?.request_id ?? "");
+    if (!uuidPattern.test(requestId)) return res.status(400).json({ error: "Invalid commission request identifier" });
+    const reason = String(req.body?.reason ?? "").trim();
+    if (!reason || reason.length > 500) return res.status(400).json({ error: "Enter a reason of up to 500 characters" });
+    const { data, error } = await res.locals.db.rpc("admin_grant_referral_commission", {
+      p_invitee_id: inviteeId,
+      p_amount_minor: amountMinor.toString(),
+      p_referral_code: String(req.body?.referral_code ?? ""),
+      p_reason: reason,
+      p_request_id: requestId.toLowerCase()
+    });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
 app.get("/api/admin/users", async (req, res) => {
   try {
     const search = String(req.query.search ?? "").slice(0, 120);
@@ -48316,7 +48358,22 @@ app.get("/api/admin/users", async (req, res) => {
     const offset = Math.max(Number(req.query.offset) || 0, 0);
     const { data, error } = await res.locals.db.rpc("admin_list_users", { p_search: search, p_status: status, p_limit: limit, p_offset: offset });
     if (error) return fail(res, error);
-    return res.json({ data });
+    const rows = data?.rows ?? [];
+    const userIds = rows.map((row) => row.id);
+    const adjustments = userIds.length ? await res.locals.db.rpc("admin_user_invested_adjustment_totals", { p_user_ids: userIds }) : { data: [], error: null };
+    if (adjustments.error) return fail(res, adjustments.error);
+    const totals = /* @__PURE__ */ new Map();
+    for (const row of adjustments.data ?? []) {
+      const key = `${row.owner_id}:${row.asset_code}`;
+      totals.set(key, (totals.get(key) ?? 0n) + minor(row.delta_minor));
+    }
+    return res.json({ data: {
+      ...data,
+      rows: rows.map((row) => {
+        const invested = minor(row.invested_minor) + (totals.get(`${row.id}:${row.balance_asset_code}`) ?? 0n);
+        return { ...row, invested_minor: invested.toString(), portfolio_minor: (minor(row.balance_minor) + invested).toString() };
+      })
+    } });
   } catch (error) {
     return fail(res, error);
   }
@@ -48408,6 +48465,28 @@ app.patch("/api/admin/users/:id", async (req, res) => {
     return fail(res, error);
   }
 });
+app.patch("/api/admin/users/:id/invested", async (req, res) => {
+  try {
+    const targetMinor = parseAmountMinor(req.body?.target_amount, true);
+    if (targetMinor === null) {
+      return res.status(400).json({ error: "Enter a valid invested total with up to two decimal places" });
+    }
+    const requestId = String(req.body?.request_id ?? "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      return res.status(400).json({ error: "Invalid invested total update request identifier" });
+    }
+    const { data, error } = await res.locals.db.rpc("admin_set_user_invested_total", {
+      p_user_id: req.params.id,
+      p_target_minor: targetMinor.toString(),
+      p_asset_code: String(req.body?.asset_code ?? ""),
+      p_request_id: requestId.toLowerCase()
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
 app.post("/api/admin/users/:id/investments", async (req, res) => {
   try {
     const principalMinor = parseAmountMinor(req.body?.amount);
@@ -48474,7 +48553,7 @@ app.get("/api/admin/transactions", async (req, res) => {
 });
 app.get("/api/admin/investments", async (_req, res) => {
   try {
-    const { data, error } = await res.locals.db.from("investments").select("id,principal_minor,asset_code,status,created_at,owner_id,creation_source,investment_plans(name)").order("created_at", { ascending: false }).limit(200);
+    const { data, error } = await res.locals.db.from("investments").select("id,principal_minor,asset_code,status,created_at,owner_id,creation_source,admin_funding_method,investment_plans(name)").order("created_at", { ascending: false }).limit(200);
     if (error) return fail(res, error);
     const rows = data ?? [];
     const ids = Array.from(new Set(rows.map((row) => row.owner_id)));
@@ -48490,6 +48569,7 @@ app.get("/api/admin/investments", async (_req, res) => {
       asset_code: row.asset_code,
       status: row.status,
       creation_source: row.creation_source,
+      admin_funding_method: row.admin_funding_method,
       date: row.created_at
     })) });
   } catch (error) {

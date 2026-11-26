@@ -43,6 +43,12 @@
 .user-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:11px;align-items:end}
 .user-form label{display:grid;gap:5px;font-size:10px;font-weight:600;color:#5d6d84}
 .user-form input,.user-row input,.user-row select{width:100%;border:1px solid #dfe6ef;border-radius:7px;padding:8px 9px;font-size:10px;color:#33445a;background:#fff}
+.referral-manual-form select{width:100%;min-height:34px;border:1px solid #dfe6ef;border-radius:7px;padding:8px 9px;font-size:10px;color:#33445a;background:#fff}
+.referral-candidate-search{display:flex;gap:6px}
+.referral-candidate-search button{flex:none}
+.referral-manual-submit{display:flex;align-items:center;gap:10px}
+.referral-manual-submit small{max-width:230px;color:#70819a;font-size:9px;line-height:1.4}
+.referral-manual-submit button{white-space:nowrap}
 .user-row input,.user-row select{padding:6px 7px}
 .row-actions{display:flex;gap:8px;align-items:center}
 .muted-link{color:#8090a5}
@@ -98,14 +104,15 @@
 .admin-user-editor-derived div{display:grid;gap:5px;min-width:0}
 .admin-user-editor-derived small{color:#70819a;font-size:9px}
 .admin-user-editor-derived b{overflow:hidden;color:#213956;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
-.admin-user-editor-finances{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.admin-user-editor-finances{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .admin-user-editor-finances label>span{display:flex;align-items:center;gap:6px}
 .admin-user-editor-finances label:first-child svg{color:#1769e8}
-.admin-user-editor-finances label:last-child svg{color:#805cdb}
+.admin-user-editor-finances label:nth-child(2) svg{color:#805cdb}
+.admin-user-editor-finances label:nth-child(3) svg{color:#16a085}
 .admin-user-editor-finances input:disabled{background:#f2f5f9;color:#8996a9}
 .admin-user-editor-note{margin:9px 0 0;color:#93640d;font-size:10px}
 .admin-user-editor-error{margin-top:10px;padding:9px 11px;border:1px solid #f1c7c7;border-radius:8px;background:#fff2f2;color:#a52a2a;font-size:11px}
-.admin-user-editor-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:16px}
+.admin-user-editor-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:9px;margin-top:16px}
 .admin-user-editor-actions button{display:inline-flex;align-items:center;gap:6px}
 .admin-user-editor-investment{display:grid;gap:10px;margin-top:16px;padding:14px;border:1px solid #dfe7f1;border-radius:10px;background:#f8fafd}
 .admin-user-editor-investment h3{margin:0;color:#20334f;font-size:13px}
@@ -116,4 +123,5 @@
 .admin-user-editor-investment-fields input:focus,.admin-user-editor-investment-fields select:focus{outline:2px solid #1769e833;border-color:#1769e8}
 .admin-user-editor-investment-actions{display:flex;justify-content:flex-end}
 .admin-user-editor-investment-actions button{display:inline-flex;align-items:center;gap:6px}
-@media(max-width:560px){.admin-user-editor{padding:16px}.admin-user-editor-grid,.admin-user-editor-finances,.admin-user-editor-investment-fields{grid-template-columns:1fr}.admin-user-editor-derived{grid-template-columns:1fr 1fr}.admin-user-editor-header h2{font-size:18px}}
+@media(max-width:700px){.admin-user-editor-finances{grid-template-columns:1fr}}
+@media(max-width:560px){.admin-user-editor{padding:16px}.admin-user-editor-grid,.admin-user-editor-investment-fields{grid-template-columns:1fr}.admin-user-editor-derived{grid-template-columns:1fr 1fr}.admin-user-editor-header h2{font-size:18px}}
