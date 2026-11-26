@@ -18,20 +18,11 @@ const DAILY_RATE_BPS = 500;
 const SUPPORT_WHATSAPP_NUMBER = '+250793658206';
 const planAssetOptions=[...new Set([...Object.values(countryToCurrency),'BTC','ETH','USDT','USDC'])].sort();
 
-export function ReturnStrip({returns,money}:any){
-  return <section className="return-strip">
-    <div className="return-main"><span className="return-icon"><TrendingUp size={19}/></span><div><small>Daily automated return</small><strong>{minorMoney(returns?.daily_minor,money)}</strong><em>{minorMoney(returns?.paid_minor,money)} credited to date</em></div></div>
-    <div className="return-stat"><small>Accruing now</small><b>{minorMoney(returns?.accrued_minor,money)}</b><span>Next credit {dateLabel(returns?.next_credit_at)}</span></div>
-    <div className="return-note"><ShieldCheck size={16}/><span>Calculated from active plans every time you open your dashboard.</span></div>
-  </section>;
-}
-
-export function InvestPage({data,money,returns:dashboardReturns,token,onChoose,onDirectBonus}:any){
+export function InvestPage({data,money,token,onChoose,onDirectBonus}:any){
   const burundi=isBurundi(data?.profile?.country,data?.currency);
   const [tab,setTab]=useState('Available Plans');
   const [plans,setPlans]=useState<any[]>([]);
   const [rows,setRows]=useState<any[]>([]);
-  const [returns,setReturns]=useState<any>(null);
   const [proofs,setProofs]=useState<any[]>([]);
   const [loading,setLoading]=useState(false);
   const [errors,setErrors]=useState<Record<string,string>>({});
@@ -40,23 +31,20 @@ export function InvestPage({data,money,returns:dashboardReturns,token,onChoose,o
     const results=await Promise.allSettled([
       client(token,'/investment-plans'),
       client(token,'/member/investments'),
-      client(token,'/member/returns'),
       client(token,'/member/payment-proofs'),
     ]);
     const nextErrors:Record<string,string>={};
     const message=(reason:unknown)=>reason instanceof Error?reason.message:'Request failed';
-    const [planResult,investmentResult,returnsResult,proofsResult]=results;
+    const [planResult,investmentResult,proofsResult]=results;
     if(planResult.status==='fulfilled')setPlans(planResult.value as any[]);else nextErrors.plans=message(planResult.reason);
     if(investmentResult.status==='fulfilled')setRows(investmentResult.value as any[]);else nextErrors.investments=message(investmentResult.reason);
-    if(returnsResult.status==='fulfilled')setReturns(returnsResult.value);else nextErrors.returns=message(returnsResult.reason);
     if(proofsResult.status==='fulfilled')setProofs(proofsResult.value as any[]);else nextErrors.proofs=message(proofsResult.reason);
     setErrors(nextErrors);
     setLoading(false);
   };
   useEffect(()=>{load()},[token]);
-  const errorLabels:Record<string,string>={plans:'Investment plans',investments:'Your investments',returns:'Return summary',proofs:'Payment proofs'};
+  const errorLabels:Record<string,string>={plans:'Investment plans',investments:'Your investments',proofs:'Payment proofs'};
   return <>
-    <ReturnStrip returns={dashboardReturns??returns} money={money}/>
     {burundi&&<div className="section-heading"><div><h2>Received Bonus</h2><p>Review the LINK BONUS details for Burundi members.</p></div><button className="outline-button" onClick={onDirectBonus}><Gift size={16}/> View Direct Bonus</button></div>}
     {Object.entries(errors).map(([key,message])=><div className="notice-banner data-error" key={key}><ShieldCheck size={18}/><span><b>{errorLabels[key]||'Investment data'} unavailable</b><small>{message}</small></span></div>)}
     <div className="tabs"> {['Available Plans','My Investments'].map(x=><button className={tab===x?'selected':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>

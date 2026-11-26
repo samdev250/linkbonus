@@ -94,7 +94,7 @@ app.get('/api/member/dashboard', async (_req, res: SessionResponse) => {
       db.from('profiles').select('full_name,country,phone,verification_status,referral_code').eq('id', res.locals.user.id).maybeSingle(),
       db.from('asset_accounts').select('id,asset_code').eq('owner_id', res.locals.user.id),
       db.from('ledger_transactions').select('id,kind,status,amount_minor,asset_code,description,created_at').eq('owner_id', res.locals.user.id).order('created_at', { ascending: false }).limit(5),
-      db.from('investments').select('principal_minor,asset_code').eq('owner_id', res.locals.user.id).in('status', ['active','pending']),
+      db.from('investments').select('principal_minor,asset_code').eq('owner_id', res.locals.user.id).eq('status', 'active'),
       db.from('referral_commissions').select('amount_minor,status').eq('referrer_id', res.locals.user.id),
       db.from('ledger_transactions').select('id,kind').eq('owner_id', res.locals.user.id).in('kind', ['bonus_credit','bonus_debit']).eq('status', 'completed'),
     ]);
