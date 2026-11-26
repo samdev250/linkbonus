@@ -83,6 +83,9 @@
 .admin-dashboard .users-table .bonus-money{color:#7250ba}
 .admin-dashboard .users-table .user-cell,.admin-dashboard .users-table .user-cell>div{min-width:0}
 .admin-dashboard .users-table .user-cell small{overflow-wrap:anywhere}
+.admin-dashboard .users-table .upline-cell{display:grid;gap:3px;min-width:0}
+.admin-dashboard .users-table .upline-cell b{overflow-wrap:anywhere;color:#334a68;font-size:10px}
+.admin-dashboard .users-table .upline-cell small{overflow-wrap:anywhere;color:#7889a0;font-size:9px}
 .admin-dashboard .users-table .row-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
 .admin-dashboard .users-table .row-actions .text-button{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .admin-dashboard .users-table .user-row>select{min-width:0;border:1px solid #dfe6ef;border-radius:7px;padding:7px;background:#fff;color:#33445a;font-size:10px}

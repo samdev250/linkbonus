@@ -392,6 +392,30 @@ app.get('/api/admin/users', async (req, res: SessionResponse) => {
     if (error) return fail(res, error);
     const rows = data?.rows ?? [];
     const userIds = rows.map((row: { id: string }) => row.id);
+    const memberProfiles = userIds.length
+      ? await res.locals.db.from('profiles').select('id,referred_by').in('id', userIds)
+      : { data: [], error: null };
+    if (memberProfiles.error) return fail(res, memberProfiles.error);
+    const referrerIds = Array.from(new Set(
+      (memberProfiles.data ?? [])
+        .map((profile: { referred_by: string | null }) => profile.referred_by)
+        .filter((id: string | null): id is string => Boolean(id)),
+    ));
+    const referrerProfiles = referrerIds.length
+      ? await res.locals.db.from('profiles').select('id,full_name,referral_code').in('id', referrerIds)
+      : { data: [], error: null };
+    if (referrerProfiles.error) return fail(res, referrerProfiles.error);
+    const inviters = new Map<string, { full_name: string; referral_code: string }>();
+    for (const profile of referrerProfiles.data ?? []) inviters.set(profile.id, profile);
+    const uplineByUserId = new Map<string, { name: string; referral_code: string | null }>();
+    for (const profile of memberProfiles.data ?? []) {
+      if (!profile.referred_by) continue;
+      const inviter = inviters.get(profile.referred_by);
+      uplineByUserId.set(profile.id, {
+        name: inviter ? String(inviter.full_name ?? '').trim() || inviter.referral_code : 'Unknown inviter',
+        referral_code: inviter?.referral_code ?? null,
+      });
+    }
     const adjustments = userIds.length
       ? await res.locals.db.rpc('admin_user_invested_adjustment_totals', { p_user_ids: userIds })
       : { data: [], error: null };
@@ -405,7 +429,14 @@ app.get('/api/admin/users', async (req, res: SessionResponse) => {
       ...data,
       rows: rows.map((row: { id: string; balance_asset_code: string; balance_minor: string|number; invested_minor: string|number }) => {
         const invested = minor(row.invested_minor) + (totals.get(`${row.id}:${row.balance_asset_code}`) ?? 0n);
-        return { ...row, invested_minor: invested.toString(), portfolio_minor: (minor(row.balance_minor) + invested).toString() };
+        const upline = uplineByUserId.get(row.id);
+        return {
+          ...row,
+          invested_minor: invested.toString(),
+          portfolio_minor: (minor(row.balance_minor) + invested).toString(),
+          upline_name: upline?.name ?? null,
+          upline_referral_code: upline?.referral_code ?? null,
+        };
       }),
     } });
   } catch (error) { return fail(res, error); }
