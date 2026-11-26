@@ -1,8 +1,8 @@
 import {useEffect,useState} from 'react';
-import {ArrowRight, Bell, Building2, CheckCircle2, Copy, Gift, Globe2, Image as ImageIcon, Loader2, Mail, MessageCircle, Pencil, Plus, ReceiptText, Send, ShieldCheck, TrendingUp, Upload, X, XCircle} from 'lucide-react';
+import {ArrowRight, Bell, Building2, CheckCircle2, Copy, Gift, Globe2, Image as ImageIcon, Loader2, Mail, MessageCircle, Pencil, Plus, ReceiptText, Send, ShieldCheck, TrendingUp, Upload, Wallet, X, XCircle} from 'lucide-react';
 import countryToCurrency from 'country-to-currency';
 import {apiUrl,supabase} from './supabase';
-import {countryRegions} from './countries';
+import {countryCodes,countryRegions} from './countries';
 import {isBurundi} from './directBonus';
 
 const client = async (token:string,path:string,init:RequestInit={}) => {
@@ -163,4 +163,204 @@ export function AdminSettingsView({token,toast}:any){
   const savePayment=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{await client(token,'/admin/payment-instructions',{method:'POST',body:JSON.stringify(form)});setForm({country_code:'',bank_name:'',account_name:'',account_number:'',instructions:'',active:true});toast('Payment instructions saved');load()}catch(err){toast(err instanceof Error?err.message:'Could not save instructions')}finally{setBusy(false)}};
   const saveSupport=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{await client(token,'/admin/support-settings',{method:'POST',body:JSON.stringify(support)});toast('Support links saved');load()}catch(err){toast(err instanceof Error?err.message:'Could not save support links')}finally{setBusy(false)}};
   return <><section className="panel settings-panel"><div className="panel-heading"><div><h2>Payment instructions by country</h2><p>Members see these details when they open the deposit form.</p></div><Building2 size={19}/></div><div className="workflow-table"><div className="workflow-head settings-head-grid"><span>Country</span><span>Bank / provider</span><span>Account name</span><span>Account number</span><span>Status</span><span/></div>{rows.map(r=><div className="workflow-row settings-head-grid" key={r.country_code}><b>{countryLabel(r.country_code)} <small>{r.country_code}</small></b><span>{r.bank_name||'—'}</span><span>{r.account_name}</span><span>{r.account_number}</span><span className={`status-tag ${r.active?'':'muted'}`}>{r.active?'Active':'Hidden'}</span><span className="proof-actions"><button className="text-button" onClick={()=>setForm({...r})}>Edit</button></span></div>)}{!rows.length&&<div className="admin-empty-row">No payment instructions configured yet.</div>}</div><form className="settings-form" onSubmit={savePayment}><div className="settings-form-title"><b>Add or edit payment details</b><small>Choose any country, then save the payee details its members must follow.</small></div><label><span>Country</span><select required value={form.country_code} onChange={e=>setForm({...form,country_code:e.target.value})}><option value="">Choose country</option>{form.country_code&&!allCountryCodes.includes(form.country_code)&&<option value={form.country_code}>{countryLabel(form.country_code)} ({form.country_code})</option>}{allCountryCodes.map(c=><option value={c} key={c}>{countryLabel(c)} ({c})</option>)}</select></label><label><span>Bank / provider</span><input value={form.bank_name} onChange={e=>setForm({...form,bank_name:e.target.value})} placeholder="Bank or mobile money"/></label><label><span>Account name</span><input required value={form.account_name} onChange={e=>setForm({...form,account_name:e.target.value})}/></label><label><span>Account number</span><input required value={form.account_number} onChange={e=>setForm({...form,account_number:e.target.value})}/></label><label className="settings-wide"><span>Extra instructions</span><textarea value={form.instructions} onChange={e=>setForm({...form,instructions:e.target.value})} placeholder="Reference format, transfer notes, limits…"/></label><label className="settings-check"><input type="checkbox" checked={form.active!==false} onChange={e=>setForm({...form,active:e.target.checked})}/><span>Show to members</span></label><button className="primary compact" disabled={busy} type="submit"><CheckCircle2 size={15}/> Save payment instructions</button></form></section><section className="panel settings-panel"><div className="panel-heading"><div><h2>Support links</h2><p>These appear on every member’s Profile support card.</p></div><Globe2 size={19}/></div><form className="settings-form support-form" onSubmit={saveSupport}><label><span>Support email</span><input required type="email" value={support.support_email||''} onChange={e=>setSupport({...support,support_email:e.target.value})}/></label><label><span>Telegram group URL</span><input value={support.telegram_url||''} onChange={e=>setSupport({...support,telegram_url:e.target.value})} placeholder="https://t.me/…"/></label><button className="primary compact" disabled={busy} type="submit"><CheckCircle2 size={15}/> Save support links</button></form></section></>;
+}
+
+export function AdminWithdrawalMinimums({token,toast}:any){
+  const [rows,setRows]=useState<any[]>([]);
+  const [form,setForm]=useState({country_code:'',minimum:''});
+  const [busy,setBusy]=useState(false);
+  const load=async()=>{try{setRows(await client(token,'/admin/withdrawal-minimums') as any[])}catch(error){toast(error instanceof Error?error.message:'Could not load withdrawal minimums')}};
+  useEffect(()=>{load()},[token]);
+  const selectCountry=(country_code:string)=>{const existing=rows.find(row=>row.country_code===country_code);setForm({country_code,minimum:existing?String(Number(existing.minimum_minor)/100):''})};
+  const save=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    const minimum=Number(form.minimum);
+    if(!form.country_code||!Number.isFinite(minimum)||minimum<=0){toast('Choose a country and enter a minimum greater than zero');return}
+    const minimum_minor=Math.round(minimum*100);
+    if(!Number.isSafeInteger(minimum_minor)){toast('Enter a valid minimum withdrawal amount');return}
+    setBusy(true);
+    try{
+      await client(token,'/admin/withdrawal-minimums',{method:'POST',body:JSON.stringify({country_code:form.country_code,minimum_minor})});
+      setForm({country_code:'',minimum:''});
+      toast('Withdrawal minimum saved');
+      await load();
+    }catch(error){toast(error instanceof Error?error.message:'Could not save withdrawal minimum')}
+    finally{setBusy(false)}
+  };
+  const format=(row:any)=>`${row.currency_code} ${new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(row.minimum_minor)/100)}`;
+  const countryCurrency=(code:string)=>Object.entries(countryToCurrency).find(([country])=>country===code)?.[1]||'USD';
+  return <section className="panel settings-panel">
+    <div className="panel-heading"><div><h2>Minimum withdrawals by country</h2><p>Members need at least this available balance before opening a withdrawal request. Countries not configured here cannot request withdrawals.</p></div><Building2 size={19}/></div>
+    <div className="workflow-table">
+      <div className="workflow-head withdrawal-minimum-grid"><span>Country</span><span>Currency</span><span>Minimum</span><span/></div>
+      {rows.map(row=><div className="workflow-row withdrawal-minimum-grid" key={row.country_code}>
+        <b>{countryLabel(row.country_code)} <small>{row.country_code}</small></b><span>{row.currency_code}</span><b>{format(row)}</b>
+        <span className="proof-actions"><button className="text-button" onClick={()=>selectCountry(row.country_code)}><Pencil size={13}/> Edit</button></span>
+      </div>)}
+      {!rows.length&&<div className="admin-empty-row">No withdrawal minimums configured.</div>}
+    </div>
+    <form className="settings-form" onSubmit={save}>
+      <div className="settings-form-title"><b>Set a country minimum</b><small>Enter the amount in the country’s currency. Saving an existing country updates its minimum.</small></div>
+      <label><span>Country</span><select required value={form.country_code} onChange={event=>selectCountry(event.target.value)}><option value="">Choose country</option>{countryCodes.map(code=><option value={code} key={code}>{countryLabel(code)} ({code})</option>)}</select></label>
+      <label><span>Minimum amount ({countryCurrency(form.country_code)})</span><input required type="number" min="0.01" step="0.01" value={form.minimum} onChange={event=>setForm({...form,minimum:event.target.value})}/></label>
+      <button className="primary compact" disabled={busy} type="submit"><CheckCircle2 size={15}/>{busy?'Saving…':'Save minimum'}</button>
+    </form>
+  </section>;
+}
+
+export function WithdrawalForm({token,data,money,supportEmail,onDone,onCancel}:any){
+  const [minimum,setMinimum]=useState<any>(null);
+  const [minimumError,setMinimumError]=useState('');
+  const [source,setSource]=useState('wallet');
+  const [amount,setAmount]=useState('');
+  const [payoutMethod,setPayoutMethod]=useState('mobile_money');
+  const [provider,setProvider]=useState('');
+  const [accountName,setAccountName]=useState('');
+  const [accountNumber,setAccountNumber]=useState('');
+  const [requestId]=useState(()=>crypto.randomUUID());
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const sources=[
+    {id:'wallet',label:'Wallet balance',available:Number(data.available)||0,request:true},
+    {id:'referrals',label:'Referral commissions',available:Number(data.referrals)||0},
+    {id:'bonus',label:'Bonuses',available:Number(data.bonus)||0},
+    {id:'returns',label:'Investment returns',available:Number(data.returns?.paid_minor||0)/100},
+    {id:'other',label:'Other / ask administration',available:null},
+  ];
+  const selectedSource=sources.find(item=>item.id===source)||sources[0];
+  const minimumAmount=Number(minimum?.minimum_minor||0)/100;
+  useEffect(()=>{
+    let cancelled=false;
+    client(token,'/member/withdrawal-minimum')
+      .then(result=>{if(!cancelled)setMinimum(result)})
+      .catch(reason=>{if(!cancelled)setMinimumError(reason instanceof Error?reason.message:'Could not load the withdrawal minimum')});
+    return()=>{cancelled=true};
+  },[token]);
+  const submit=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    setError('');
+    const numericAmount=Number(amount);
+    if(minimumError){setError(minimumError);return}
+    if(minimum?.configured!==true){setError('A minimum withdrawal amount has not been configured for your country. Please contact support.');return}
+    if(!Number.isFinite(numericAmount)||numericAmount<=0){setError('Enter an amount greater than zero');return}
+    const amountMinor=Math.round(numericAmount*100);
+    if(!Number.isSafeInteger(amountMinor)){setError('Enter a valid withdrawal amount');return}
+    if(amountMinor<Number(minimum.minimum_minor)){setError(`The minimum withdrawal is ${minimum.currency_code} ${new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}).format(minimumAmount)}`);return}
+    if(selectedSource.available!==null&&numericAmount>selectedSource.available){setError(`The amount exceeds your available ${selectedSource.label.toLowerCase()} of ${money(String(selectedSource.available))}`);return}
+    if(!provider.trim()||!accountName.trim()||!accountNumber.trim()){setError('Complete the payout provider, account name, and account number');return}
+
+    setBusy(true);
+    try{
+      if(selectedSource.request){
+        await client(token,'/member/withdrawals',{method:'POST',body:JSON.stringify({
+          request_id:requestId,
+          amount_minor:amountMinor,
+          asset_code:data.currency,
+          payout_method:payoutMethod,
+          payout_provider:provider.trim(),
+          payout_account_name:accountName.trim(),
+          payout_account_number:accountNumber.trim(),
+        })});
+        window.dispatchEvent(new Event('member-withdrawal-updated'));
+        onDone('Withdrawal request submitted for admin approval. Your wallet balance will only be deducted if it is approved.');
+      }else{
+        const subject=`Withdrawal support request: ${selectedSource.label}`;
+        const body=[
+          'Hello, I would like to request a withdrawal.',
+          `Member: ${data.name} (${data.email})`,
+          `Source: ${selectedSource.label}`,
+          `Requested amount: ${data.currency} ${numericAmount.toFixed(2)}`,
+          `Payout method: ${payoutMethod==='mobile_money'?'Mobile money':'Bank'}`,
+          `Provider/bank: ${provider.trim()}`,
+          `Account name: ${accountName.trim()}`,
+          `Account number/phone: ${accountNumber.trim()}`,
+        ].join('\n');
+        window.location.href=`mailto:${encodeURIComponent(supportEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        onDone('Withdrawal support email draft opened. Send it to submit your request.');
+      }
+    }catch(reason){setError(reason instanceof Error?reason.message:'Could not submit withdrawal request')}
+    finally{setBusy(false)}
+  };
+  const minimumLoading=!minimum&&!minimumError;
+  return <form className="settings-form withdrawal-request-form" onSubmit={submit}>
+    <div className="settings-form-title"><b>Withdrawal request</b><small>Choose the funds and payout destination. Wallet requests require admin approval; no balance is deducted while pending.</small></div>
+    {minimumError&&<div className="notice-banner data-error settings-wide" role="alert"><ShieldCheck size={18}/><span><b>Minimum withdrawal unavailable</b><small>{minimumError}</small></span></div>}
+    {minimum?.configured===false&&<div className="notice-banner data-error settings-wide" role="alert"><ShieldCheck size={18}/><span><b>Withdrawal not configured</b><small>A minimum withdrawal amount has not been configured for your country yet. Please contact support.</small></span></div>}
+    {minimum?.configured===true&&<div className="notice-banner settings-wide"><ShieldCheck size={18}/><span><b>Minimum withdrawal: {minimum.currency_code} {new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}).format(minimumAmount)}</b><small>Available wallet balance: {money(data.available)}. Pending wallet requests reserve funds but do not reduce your displayed balance.</small></span></div>}
+    <label className="settings-wide"><span>Funds to withdraw</span><select value={source} onChange={event=>setSource(event.target.value)}>{sources.map(item=><option key={item.id} value={item.id}>{item.label}{item.request?' · admin approval':item.id==='other'?' · email support':' · email support'}</option>)}</select></label>
+    <div className="notice-banner settings-wide"><Wallet size={18}/><span><b>{selectedSource.available===null?'Enter the amount you want to request':`Available ${selectedSource.label.toLowerCase()}: ${money(String(selectedSource.available))}`}</b><small>{selectedSource.request?'This amount is checked against your wallet and rechecked when admin approves.':'This request will be sent to administration by email for review.'}</small></span></div>
+    <label><span>Amount ({data.currency})</span><input required type="number" min={minimum?.configured?minimumAmount:0.01} max={selectedSource.available===null?undefined:selectedSource.available} step="0.01" value={amount} onChange={event=>setAmount(event.target.value)} placeholder="Enter amount"/></label>
+    <label><span>Payout method</span><select value={payoutMethod} onChange={event=>setPayoutMethod(event.target.value)}><option value="mobile_money">Mobile money</option><option value="bank">Bank transfer</option></select></label>
+    <label><span>{payoutMethod==='mobile_money'?'Mobile-money provider':'Bank name'}</span><input required value={provider} onChange={event=>setProvider(event.target.value)} placeholder={payoutMethod==='mobile_money'?'e.g. MTN, Airtel':'Bank name'}/></label>
+    <label><span>Account holder name</span><input required value={accountName} onChange={event=>setAccountName(event.target.value)} placeholder="Name on the account"/></label>
+    <label><span>{payoutMethod==='mobile_money'?'Phone number':'Account number'}</span><input required value={accountNumber} onChange={event=>setAccountNumber(event.target.value)} placeholder={payoutMethod==='mobile_money'?'Include country code':'Bank account number'}/></label>
+    {error&&<div className="form-error settings-wide" role="alert">{error}</div>}
+    <div className="settings-wide withdrawal-form-actions"><button className="primary compact" type="submit" disabled={busy||minimumLoading||minimum?.configured!==true}>{busy?'Submitting…':selectedSource.request?'Submit for admin approval':'Email withdrawal support'}</button><button className="outline-button" type="button" onClick={onCancel}>Cancel</button></div>
+  </form>;
+}
+
+export function MemberWithdrawalHistory({token,money}:any){
+  const [rows,setRows]=useState<any[]>([]);
+  const [error,setError]=useState('');
+  const load=async()=>{try{setRows(await client(token,'/member/withdrawals') as any[]);setError('')}catch(reason){setError(reason instanceof Error?reason.message:'Could not load withdrawal requests')}};
+  useEffect(()=>{
+    void load();
+    const refresh=()=>{void load()};
+    window.addEventListener('member-withdrawal-updated',refresh);
+    return()=>window.removeEventListener('member-withdrawal-updated',refresh);
+  },[token]);
+  return <section className="panel table-panel">
+    <div className="panel-heading"><div><h2>Withdrawal requests</h2><p>Wallet withdrawals remain pending until an administrator reviews them.</p></div><button className="outline-button" onClick={()=>void load()}>Refresh</button></div>
+    {error&&<div className="notice-banner data-error" role="alert"><ShieldCheck size={18}/><span><b>Withdrawal history unavailable</b><small>{error}</small></span></div>}
+    <div className="workflow-table">
+      <div className="workflow-head withdrawal-history-grid"><span>Requested</span><span>Amount</span><span>Payout destination</span><span>Status</span><span>Admin note</span></div>
+      {rows.map(row=><div className="workflow-row withdrawal-history-grid" key={row.id}><span>{dateLabel(row.created_at)}</span><b>{money(String(Number(row.amount_minor)/100))}</b><span>{row.payout_method==='mobile_money'?'Mobile money':'Bank'} · {row.payout_provider}<small>{row.payout_account_name} · {row.payout_account_number}</small></span><span className={`status-tag ${row.status==='approved'?'':'muted'}`}>{row.status}</span><span>{row.admin_note||'—'}</span></div>)}
+      {!rows.length&&!error&&<div className="admin-empty-row">No wallet withdrawal requests yet.</div>}
+    </div>
+  </section>;
+}
+
+export function AdminWithdrawalRequestsView({token,toast}:any){
+  const [status,setStatus]=useState('pending');
+  const [rows,setRows]=useState<any[]>([]);
+  const [loading,setLoading]=useState(false);
+  const [busy,setBusy]=useState('');
+  const [error,setError]=useState('');
+  const load=async()=>{
+    setLoading(true);
+    try{setRows(await client(token,`/admin/withdrawals?status=${status}`) as any[]);setError('')}
+    catch(reason){setError(reason instanceof Error?reason.message:'Could not load withdrawal requests')}
+    finally{setLoading(false)}
+  };
+  useEffect(()=>{void load()},[token,status]);
+  const review=async(row:any,action:'approve'|'reject')=>{
+    if(action==='approve'&&!window.confirm(`Approve and deduct ${row.asset_code} ${(Number(row.amount_minor)/100).toFixed(2)} from ${row.member_name}'s wallet? You must send the payout to the listed destination after approval.`))return;
+    const note=action==='reject'?window.prompt('Reason for rejecting this withdrawal?')?.trim()||'':'';
+    if(action==='reject'&&!note)return;
+    setBusy(row.id);
+    try{
+      await client(token,`/admin/withdrawals/${row.id}/review`,{method:'POST',body:JSON.stringify({action,note})});
+      toast(action==='approve'?'Withdrawal approved and wallet debited. Send payout to the listed destination.':'Withdrawal rejected; wallet balance unchanged.');
+      await load();
+    }catch(reason){setError(reason instanceof Error?reason.message:'Could not review withdrawal request')}
+    finally{setBusy('')}
+  };
+  return <section className="panel table-panel">
+    <div className="table-toolbar"><div><h2>Withdrawal requests</h2><p>Approving a request deducts its amount from the member wallet; transfer the payout manually to the listed account.</p></div><button className="outline-button" onClick={()=>void load()}>Refresh</button></div>
+    <div className="tabs admin-tabs">{['pending','approved','rejected','all'].map(item=><button className={status===item?'selected':''} onClick={()=>setStatus(item)} key={item}>{item}</button>)}</div>
+    {error&&<div className="notice-banner data-error" role="alert"><ShieldCheck size={18}/><span><b>Withdrawal request action failed</b><small>{error}</small></span></div>}
+    {loading&&<div className="inline-loading">Loading withdrawal requests…</div>}
+    <div className="workflow-table">
+      <div className="workflow-head admin-withdrawal-grid"><span>Member</span><span>Amount</span><span>Payout destination</span><span>Requested</span><span>Status</span><span>Actions</span></div>
+      {rows.map(row=><div className="workflow-row admin-withdrawal-grid" key={row.id}>
+        <div><b>{row.member_name}</b><small>{row.email}</small></div>
+        <b>{row.asset_code} {(Number(row.amount_minor)/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</b>
+        <span>{row.payout_method==='mobile_money'?'Mobile money':'Bank'} · {row.payout_provider}<small>{row.payout_account_name} · {row.payout_account_number}</small></span>
+        <span>{dateLabel(row.created_at)}</span>
+        <span className={`status-tag ${row.status==='approved'?'':'muted'}`}>{row.status}{row.admin_note&&<small>{row.admin_note}</small>}</span>
+        <span className="proof-actions">{row.status==='pending'?<><button className="text-button" disabled={!!busy} onClick={()=>void review(row,'approve')}><CheckCircle2 size={14}/> Approve & debit</button><button className="text-button muted-link" disabled={!!busy} onClick={()=>void review(row,'reject')}><XCircle size={14}/> Reject</button></>:<span className="muted-link">{row.transaction_id?'Debited on approval':'Reviewed'}</span>}</span>
+      </div>)}
+      {!rows.length&&!loading&&!error&&<div className="admin-empty-row">No {status==='all'?'':status} withdrawal requests.</div>}
+    </div>
+  </section>;
 }

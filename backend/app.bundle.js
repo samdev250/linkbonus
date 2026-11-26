@@ -48034,7 +48034,7 @@ app.get("/api/member/dashboard", async (_req, res) => {
       db.from("profiles").select("full_name,country,phone,verification_status,referral_code").eq("id", res.locals.user.id).maybeSingle(),
       db.from("asset_accounts").select("id,asset_code").eq("owner_id", res.locals.user.id),
       db.from("ledger_transactions").select("id,kind,status,amount_minor,asset_code,description,created_at").eq("owner_id", res.locals.user.id).order("created_at", { ascending: false }).limit(5),
-      db.from("investments").select("principal_minor,asset_code").eq("owner_id", res.locals.user.id).in("status", ["active", "pending"]),
+      db.from("investments").select("principal_minor,asset_code").eq("owner_id", res.locals.user.id).eq("status", "active"),
       db.from("referral_commissions").select("amount_minor,status").eq("referrer_id", res.locals.user.id),
       db.from("ledger_transactions").select("id,kind").eq("owner_id", res.locals.user.id).in("kind", ["bonus_credit", "bonus_debit"]).eq("status", "completed")
     ]);
@@ -48220,6 +48220,50 @@ app.get("/api/member/payment-proofs", async (_req, res) => {
     const { data, error } = await res.locals.db.rpc("member_list_payment_proofs");
     if (error) return fail(res, error);
     return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/member/withdrawal-minimum", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_get_withdrawal_minimum");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/member/withdrawals", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("member_list_withdrawal_requests");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/member/withdrawals", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const amountMinor = Number(body.amount_minor);
+    const requestId = String(body.request_id ?? "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      return res.status(400).json({ error: "Invalid withdrawal request identifier" });
+    }
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+      return res.status(400).json({ error: "Withdrawal amount must be greater than zero" });
+    }
+    const { data, error } = await res.locals.db.rpc("member_create_withdrawal_request", {
+      p_request_id: requestId,
+      p_amount_minor: amountMinor,
+      p_asset_code: String(body.asset_code ?? ""),
+      p_payout_method: String(body.payout_method ?? ""),
+      p_payout_provider: String(body.payout_provider ?? ""),
+      p_payout_account_name: String(body.payout_account_name ?? ""),
+      p_payout_account_number: String(body.payout_account_number ?? "")
+    });
+    if (error) return fail(res, error);
+    return res.status(201).json({ data });
   } catch (error) {
     return fail(res, error);
   }
@@ -48719,6 +48763,55 @@ app.post("/api/admin/payment-proofs/:id/review", async (req, res) => {
 app.get("/api/admin/payment-instructions", async (_req, res) => {
   try {
     const { data, error } = await res.locals.db.rpc("admin_list_payment_instructions");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/admin/withdrawal-minimums", async (_req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_list_withdrawal_minimums");
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.get("/api/admin/withdrawals", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_list_withdrawal_requests", {
+      p_status: String(req.query.status ?? "pending")
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/withdrawals/:id/review", async (req, res) => {
+  try {
+    const { data, error } = await res.locals.db.rpc("admin_review_withdrawal_request", {
+      p_id: req.params.id,
+      p_action: String(req.body?.action ?? ""),
+      p_note: req.body?.note || null
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) {
+    return fail(res, error);
+  }
+});
+app.post("/api/admin/withdrawal-minimums", async (req, res) => {
+  try {
+    const minimumMinor = Number(req.body?.minimum_minor);
+    if (!Number.isSafeInteger(minimumMinor) || minimumMinor <= 0) {
+      return res.status(400).json({ error: "Minimum withdrawal amount must be greater than zero" });
+    }
+    const { data, error } = await res.locals.db.rpc("admin_set_withdrawal_minimum", {
+      p_country_code: String(req.body?.country_code ?? ""),
+      p_minimum_minor: minimumMinor
+    });
     if (error) return fail(res, error);
     return res.json({ data });
   } catch (error) {
