@@ -579,26 +579,76 @@ app.get('/api/admin/transactions', async (req, res: SessionResponse) => {
 
 app.get('/api/admin/investments', async (_req, res: SessionResponse) => {
   try {
-    const { data, error } = await res.locals.db.from('investments')
-      .select('id,principal_minor,asset_code,status,created_at,owner_id,creation_source,admin_funding_method,investment_plans(name)')
-      .order('created_at', { ascending: false }).limit(200);
+    const requestedLimit = Math.trunc(Number(_req.query.limit));
+    const requestedOffset = Math.trunc(Number(_req.query.offset));
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit || 50, 1), 200) : 50;
+    const offset = Number.isSafeInteger(requestedOffset) ? Math.min(Math.max(requestedOffset, 0), 2147483647) : 0;
+    const { data, error, count } = await res.locals.db.from('investments')
+      .select('id,principal_minor,asset_code,status,created_at,owner_id,creation_source,admin_funding_method,investment_plans(name)', { count: 'exact' })
+      .order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
     if (error) return fail(res, error);
     const rows = data ?? [];
     const ids = Array.from(new Set(rows.map(row => row.owner_id)));
     const profiles = ids.length ? await res.locals.db.from('profiles').select('id,full_name').in('id', ids) : { data: [], error: null };
     if (profiles.error) return fail(res, profiles.error);
     const names = new Map((profiles.data ?? []).map(row => [row.id, row.full_name]));
-    return res.json({ data: rows.map(row => ({
-      id: row.id,
-      user: names.get(row.owner_id) ?? String(row.owner_id).slice(0, 8),
-      plan: (row as any).investment_plans?.name ?? 'Plan',
-      amount: amount(minor(row.principal_minor)), principal_minor: row.principal_minor,
-      asset_code: row.asset_code,
-      status: row.status,
-      creation_source: row.creation_source,
-      admin_funding_method: row.admin_funding_method,
-      date: row.created_at,
-    })) });
+    return res.json({ data: {
+      rows: rows.map(row => ({
+        id: row.id,
+        user: names.get(row.owner_id) ?? String(row.owner_id).slice(0, 8),
+        plan: (row as any).investment_plans?.name ?? 'Plan',
+        amount: amount(minor(row.principal_minor)), principal_minor: row.principal_minor,
+        asset_code: row.asset_code,
+        status: row.status,
+        creation_source: row.creation_source,
+        admin_funding_method: row.admin_funding_method,
+        date: row.created_at,
+      })),
+      total: count ?? 0,
+      limit,
+      offset,
+    } });
+  } catch (error) { return fail(res, error); }
+});
+
+app.patch('/api/admin/investments/:id', async (req, res: SessionResponse) => {
+  try {
+    const targetMinor = parseAmountMinor(req.body?.amount);
+    if (targetMinor === null) return res.status(400).json({ error: 'Enter a positive amount up to two decimal places' });
+    const requestId = String(req.body?.request_id ?? '');
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidPattern.test(req.params.id)) return res.status(400).json({ error: 'Invalid investment identifier' });
+    if (!uuidPattern.test(requestId)) return res.status(400).json({ error: 'Invalid investment update request identifier' });
+    const reason = String(req.body?.reason ?? '').trim();
+    if (!reason || reason.length > 500) return res.status(400).json({ error: 'Enter a reason of up to 500 characters' });
+
+    const { data, error } = await res.locals.db.rpc('admin_update_investment_amount', {
+      p_investment_id: req.params.id,
+      p_target_minor: targetMinor.toString(),
+      p_reason: reason,
+      p_request_id: requestId.toLowerCase(),
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
+  } catch (error) { return fail(res, error); }
+});
+
+app.delete('/api/admin/investments/:id', async (req, res: SessionResponse) => {
+  try {
+    const requestId = String(req.body?.request_id ?? '');
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidPattern.test(req.params.id)) return res.status(400).json({ error: 'Invalid investment identifier' });
+    if (!uuidPattern.test(requestId)) return res.status(400).json({ error: 'Invalid investment cancellation request identifier' });
+    const reason = String(req.body?.reason ?? '').trim();
+    if (!reason || reason.length > 500) return res.status(400).json({ error: 'Enter a reason of up to 500 characters' });
+
+    const { data, error } = await res.locals.db.rpc('admin_cancel_investment', {
+      p_investment_id: req.params.id,
+      p_reason: reason,
+      p_request_id: requestId.toLowerCase(),
+    });
+    if (error) return fail(res, error);
+    return res.json({ data });
   } catch (error) { return fail(res, error); }
 });
 

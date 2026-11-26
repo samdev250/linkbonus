@@ -123,5 +123,27 @@
 .admin-user-editor-investment-fields input:focus,.admin-user-editor-investment-fields select:focus{outline:2px solid #1769e833;border-color:#1769e8}
 .admin-user-editor-investment-actions{display:flex;justify-content:flex-end}
 .admin-user-editor-investment-actions button{display:inline-flex;align-items:center;gap:6px}
+.admin-investment-row-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.admin-investment-cancel-link{color:#c24b52}
+.admin-investment-modal-backdrop{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:18px;background:#071b3a99}
+.admin-investment-modal{width:min(520px,100%);max-height:calc(100vh - 36px);overflow:auto;padding:22px;border:1px solid #dfe7f1;border-radius:15px;background:#fff;color:#20334f;box-shadow:0 24px 70px #071b3a40}
+.admin-investment-modal-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
+.admin-investment-modal-header .eyebrow{color:#1769e8}
+.admin-investment-modal-header h2{margin:5px 0 3px;color:#142845;font:800 21px/1.2 Manrope,sans-serif}
+.admin-investment-modal-header p{margin:0;color:#6b7c95;font-size:11px}
+.admin-investment-modal-summary{display:grid;grid-template-columns:1fr auto;gap:8px 14px;padding:12px;border:1px solid #e4eaf2;border-radius:9px;background:#f7f9fc;font-size:11px}
+.admin-investment-modal-summary span{color:#70819a}
+.admin-investment-modal-summary b{color:#213956;text-align:right}
+.admin-investment-modal-note{margin:12px 0;color:#61738d;font-size:10px;line-height:1.55}
+.admin-investment-modal-form{display:grid;gap:12px}
+.admin-investment-modal-form label{display:grid;gap:6px;color:#465a76;font-size:11px;font-weight:650}
+.admin-investment-modal-form input{width:100%;min-height:38px;padding:8px 10px;border:1px solid #d9e2ee;border-radius:8px;background:#fff;color:#20334f;font:500 12px 'DM Sans',sans-serif}
+.admin-investment-modal-form input:focus{outline:2px solid #1769e833;border-color:#1769e8}
+.admin-investment-modal-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:9px;margin-top:3px}
+.admin-investment-modal-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:36px}
+.admin-investment-danger{border:0;border-radius:8px;padding:9px 13px;background:#c84c55;color:#fff;font-size:11px;font-weight:700}
+.admin-investment-danger:disabled,.admin-investment-modal-actions button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:1000px){.admin-investment-row-actions{grid-column:1/-1}}
+@media(max-width:560px){.admin-investment-modal{padding:16px}.admin-investment-modal-header h2{font-size:18px}.admin-investment-modal-actions{flex-direction:column-reverse}.admin-investment-modal-actions button{width:100%}}
 @media(max-width:700px){.admin-user-editor-finances{grid-template-columns:1fr}}
 @media(max-width:560px){.admin-user-editor{padding:16px}.admin-user-editor-grid,.admin-user-editor-investment-fields{grid-template-columns:1fr}.admin-user-editor-derived{grid-template-columns:1fr 1fr}.admin-user-editor-header h2{font-size:18px}}

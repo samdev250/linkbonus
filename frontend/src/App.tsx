@@ -78,11 +78,13 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
   const [filter,setFilter]=useState('All users');
   const [userPage,setUserPage]=useState(1);
   const pageSize=10;
+  const investmentPageSize=50;
+  const [investmentPage,setInvestmentPage]=useState(1);
   const [txFilter,setTxFilter]=useState('All');
   const [overview,setOverview]=useState<any>(null);
   const [users,setUsers]=useState<any>({total:0,rows:[]});
   const [transactions,setTransactions]=useState<any[]>([]);
-  const [investments,setInvestments]=useState<any[]>([]);
+  const [investments,setInvestments]=useState<any>({total:0,rows:[]});
   const [referrals,setReferrals]=useState<any>({total:0,rows:[]});
   const [referralCandidates,setReferralCandidates]=useState<any[]>([]);
   const [referralCandidateSearch,setReferralCandidateSearch]=useState('');
@@ -101,12 +103,22 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
   const [userPlans,setUserPlans]=useState<any[]>([]);
   const [userPlansLoading,setUserPlansLoading]=useState(false);
   const [userPlansError,setUserPlansError]=useState('');
+  const [investmentChange,setInvestmentChange]=useState<any>(null);
+  const [investmentChangeMode,setInvestmentChangeMode]=useState<'edit'|'cancel'|null>(null);
+  const [investmentChangeAmount,setInvestmentChangeAmount]=useState('');
+  const [investmentChangeReason,setInvestmentChangeReason]=useState('');
+  const [investmentChangeRequestId,setInvestmentChangeRequestId]=useState('');
+  const [investmentChangeError,setInvestmentChangeError]=useState('');
+  const [investmentChangeBusy,setInvestmentChangeBusy]=useState(false);
   const [creating,setCreating]=useState(false);
   const [newUser,setNewUser]=useState<any>({email:'',password:'',full_name:'',country:''});
   const [busy,setBusy]=useState(false);
   const userTotal=Number(users.total||0);
   const userTotalPages=Math.max(1,Math.ceil(userTotal/pageSize));
+  const investmentTotal=Number(investments.total||0);
+  const investmentTotalPages=Math.max(1,Math.ceil(investmentTotal/investmentPageSize));
   useEffect(()=>{setUserPage(1)},[search,filter,page]);
+  useEffect(()=>{setInvestmentPage(1)},[page]);
   const api=async(path:string,init:RequestInit={})=>{const r=await fetch(`${apiUrl}${path}`,{...init,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(init.headers||{})}});const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body.error||'Request failed');return body.data};
   const reload=()=>setRefresh(n=>n+1);
   const searchReferralCandidates=async()=>{setReferralCandidatesLoading(true);setManualReferralError('');setSelectedReferralInvitee('');try{const result=await api('/admin/referral-candidates?'+new URLSearchParams({search:referralCandidateSearch}));setReferralCandidates(result.rows??[])}catch(e){setManualReferralError(e instanceof Error?e.message:'Could not load eligible referrals')}finally{setReferralCandidatesLoading(false)}};
@@ -119,13 +131,23 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
     if(page==='Overview'){const d=await api('/admin/overview');if(!cancelled)setOverview(d)}
     else if(page==='Users'){const d=await api('/admin/users?'+new URLSearchParams({search,status:filter,limit:String(pageSize),offset:String((userPage-1)*pageSize)}));if(!cancelled)setUsers(d)}
     else if(page==='Transactions'){const d=await api('/admin/transactions?status='+encodeURIComponent(txFilter));if(!cancelled)setTransactions(d)}
-    else if(page==='Investments'){const d=await api('/admin/investments');if(!cancelled)setInvestments(d)}
+    else if(page==='Investments'){const d=await api('/admin/investments?'+new URLSearchParams({limit:String(investmentPageSize),offset:String((investmentPage-1)*investmentPageSize)}));if(!cancelled)setInvestments(d)}
     else if(page==='Referrals'){const[d,c]=await Promise.all([api('/admin/referrals'),api('/admin/referral-candidates')]);if(!cancelled){setReferrals(d);setReferralCandidates(c.rows??[])}}
-  }catch(e){if(!cancelled)setError(e instanceof Error?e.message:'Could not load admin data')}finally{if(!cancelled)setLoading(false)}};load();return()=>{cancelled=true}},[token,page,search,filter,userPage,txFilter,refresh]);
+  }catch(e){if(!cancelled)setError(e instanceof Error?e.message:'Could not load admin data')}finally{if(!cancelled)setLoading(false)}};load();return()=>{cancelled=true}},[token,page,search,filter,userPage,investmentPage,txFilter,refresh]);
   const startEdit=(u:any)=>{setUserEditTarget(u);setUserEditRequestId(crypto.randomUUID());setUserPlans([]);setUserPlansError('');setUserPlansLoading(true);api('/admin/plans').then((rows:any[])=>setUserPlans(rows)).catch((e)=>setUserPlansError(e instanceof Error?e.message:'Could not load plans')).finally(()=>setUserPlansLoading(false))};
   const saveEdit=async(values:any)=>{if(!userEditTarget)return;setBusy(true);try{await api('/admin/users/'+userEditTarget.id,{method:'PATCH',body:JSON.stringify({...values,asset_code:userEditTarget.balance_asset_code,request_id:userEditRequestId})});setUserEditTarget(null);setUserEditRequestId('');reload();toast('User updated · dashboard refreshing')}finally{setBusy(false)}};
   const updateInvested=async(amount:string)=>{if(!userEditTarget)return;setBusy(true);try{const result=await api(`/admin/users/${userEditTarget.id}/invested`,{method:'PATCH',body:JSON.stringify({target_amount:amount,asset_code:userEditTarget.balance_asset_code,request_id:crypto.randomUUID()})});setUserEditTarget({...userEditTarget,invested_minor:result.target_minor,portfolio_minor:(BigInt(String(userEditTarget.balance_minor||0))+BigInt(String(result.target_minor||0))).toString()});reload();toast('Invested total updated')}finally{setBusy(false)}};
   const createAdminInvestment=async(values:any)=>{if(!userEditTarget)return;setBusy(true);try{await api(`/admin/users/${userEditTarget.id}/investments`,{method:'POST',body:JSON.stringify(values)});setUserEditTarget(null);reload();toast('Admin-created investment recorded · wallet unchanged')}finally{setBusy(false)}};
+  const startInvestmentChange=(investment:any,mode:'edit'|'cancel')=>{setInvestmentChange(investment);setInvestmentChangeMode(mode);setInvestmentChangeAmount(investment.amount);setInvestmentChangeReason('');setInvestmentChangeRequestId(crypto.randomUUID());setInvestmentChangeError('')};
+  const closeInvestmentChange=()=>{if(investmentChangeBusy)return;setInvestmentChange(null);setInvestmentChangeMode(null);setInvestmentChangeRequestId('');setInvestmentChangeError('')};
+  const submitInvestmentChange=async(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!investmentChange||!investmentChangeMode)return;setInvestmentChangeBusy(true);setInvestmentChangeError('');try{
+    const result=investmentChangeMode==='edit'
+      ?await api(`/admin/investments/${investmentChange.id}`,{method:'PATCH',body:JSON.stringify({amount:investmentChangeAmount,reason:investmentChangeReason,request_id:investmentChangeRequestId})})
+      :await api(`/admin/investments/${investmentChange.id}`,{method:'DELETE',body:JSON.stringify({reason:investmentChangeReason,request_id:investmentChangeRequestId})});
+    setInvestmentChange(null);setInvestmentChangeMode(null);setInvestmentChangeRequestId('');reload();
+    if(investmentChangeMode==='edit'){const adjustment=BigInt(String(result.wallet_adjustment_minor??0));toast(adjustment===0n?'Investment amount updated · wallet unchanged':`Investment amount updated · wallet adjustment ${fmtMoney(adjustment,result.asset_code)}`)}
+    else{const refund=BigInt(String(result.refund_minor??0));toast(refund>0n?`Investment cancelled · refunded ${fmtMoney(refund,result.asset_code)}`:'Investment cancelled · financial history retained')}
+  }catch(e){setInvestmentChangeError(e instanceof Error?e.message:'Could not update investment')}finally{setInvestmentChangeBusy(false)}};
   const createUser=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{await api('/admin/users',{method:'POST',body:JSON.stringify(newUser)});setCreating(false);setNewUser({email:'',password:'',full_name:'',country:''});reload()}catch(e){setError(e instanceof Error?e.message:'Could not create user')}finally{setBusy(false)}};
   const metrics=[
     {label:'Registered users',value:fmtCount(overview?.registered_users),hint:'All accounts',icon:Users,tone:'blue'},
@@ -138,6 +160,33 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
     {label:'Referral commissions',value:fmtCurrencyTotals(overview?.referrals_by_asset),hint:'Credited to date · grouped by currency',icon:Gift,tone:'cyan'},
   ];
   return <>
+    {investmentChange&&investmentChangeMode&&<div className="admin-investment-modal-backdrop" onClick={closeInvestmentChange}>
+      <section className="admin-investment-modal" role="dialog" aria-modal="true" aria-labelledby="admin-investment-modal-title" onClick={event=>event.stopPropagation()}>
+        <header className="admin-investment-modal-header">
+          <div><span className="eyebrow">ADMINISTRATION</span><h2 id="admin-investment-modal-title">{investmentChangeMode==='edit'?'Edit investment amount':'Cancel investment'}</h2><p>{investmentChange.user} · {investmentChange.plan}</p></div>
+          <button type="button" className="icon-button" aria-label="Close dialog" disabled={investmentChangeBusy} onClick={closeInvestmentChange}><X size={17}/></button>
+        </header>
+        <div className="admin-investment-modal-summary"><span>Current amount</span><b>{fmtMoney(investmentChange.principal_minor,investmentChange.asset_code)}</b><span>Status</span><b className="table-status">{investmentChange.status}</b></div>
+        <p className="admin-investment-modal-note">{investmentChangeMode==='edit'
+          ?(investmentChange.creation_source==='admin'&&investmentChange.admin_funding_method==='no_wallet_debit'
+            ?'This admin-created investment did not debit the wallet. Changing its amount will not change the wallet balance; future returns use the updated amount. Previously credited returns are retained.'
+            :'The wallet will be debited for an increase or credited for a decrease. The original investment debit must be verified; future returns use the updated amount and previously credited returns are retained.')
+          :(investmentChange.status==='pending'
+            ?'The investment and any pending payment proof will be cancelled. No wallet refund is issued.'
+            :(investmentChange.creation_source==='admin'&&investmentChange.admin_funding_method==='no_wallet_debit'
+              ?'This investment will stop earning future returns. It was created without a wallet debit, so no refund will be issued. Previously credited returns are retained.'
+              :'This investment will stop earning future returns. The verified original principal will be credited back to the wallet. Previously credited returns are retained.'))}</p>
+        <form className="admin-investment-modal-form" onSubmit={submitInvestmentChange}>
+          {investmentChangeMode==='edit'&&<label><span>New amount ({investmentChange.asset_code})</span><input required type="number" min="0.01" step="0.01" value={investmentChangeAmount} onChange={event=>setInvestmentChangeAmount(event.target.value)}/></label>}
+          <label><span>Reason (required for audit)</span><input required maxLength={500} value={investmentChangeReason} onChange={event=>setInvestmentChangeReason(event.target.value)} placeholder="Explain this investment change"/></label>
+          {investmentChangeError&&<div className="admin-user-editor-error" role="alert">{investmentChangeError}</div>}
+          <div className="admin-investment-modal-actions">
+            <button type="button" className="outline-button" disabled={investmentChangeBusy} onClick={closeInvestmentChange}>Keep investment</button>
+            <button type="submit" className={investmentChangeMode==='cancel'?'admin-investment-danger':'primary'} disabled={investmentChangeBusy}>{investmentChangeBusy?(investmentChangeMode==='edit'?'Updating…':'Cancelling…'):(investmentChangeMode==='edit'?'Save amount':'Cancel investment')}</button>
+          </div>
+        </form>
+      </section>
+    </div>}
     {userEditTarget&&<AdminUserEditor user={userEditTarget} saving={busy} plans={userPlans} plansLoading={userPlansLoading} plansError={userPlansError} onClose={()=>{setUserEditTarget(null);setUserEditRequestId('')}} onSave={saveEdit} onUpdateInvested={updateInvested} onCreateInvestment={createAdminInvestment}/>}
     <div className="page-heading">
       <div><div className="eyebrow">ADMINISTRATION</div><h1>{page==='Overview'?'Platform overview':page}</h1><p>{page==='Overview'?'A live snapshot of platform activity and financial operations.':`Review and manage ${page.toLowerCase()} activity.`}</p></div>
@@ -161,7 +210,7 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
       <section className="panel table-panel"><div className="table-toolbar"><div><h2>Registered users</h2><p>{fmtCount(users.total)} accounts - financial values shown in each user's account currency.</p></div></div><div className="filters"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or ID"/></div><select value={filter} onChange={e=>setFilter(e.target.value)}><option>All users</option><option>Verified</option><option>Pending verification</option><option>Suspended</option></select></div><div className="admin-table users-table"><div className="table-head"><span>User</span><span>Country</span><span><Wallet size={14}/> Wallet balance</span><span><TrendingUp size={14}/> Invested</span><span><Coins size={14}/> Received bonus</span><span><Gift size={14}/> Referrals</span><span><CircleDollarSign size={14}/> Portfolio</span><span>Registered</span><span>Verification</span><span>Account</span><span>Actions</span></div>{(users.rows??[]).map((u:any)=><div className="table-row user-row" key={u.id}>{<><div className="user-cell"><span className="avatar small">{String(u.name||'U').slice(0,1).toUpperCase()}</span><div><b>{u.name}</b><small>{u.email}</small>{u.phone&&<small>{u.phone}</small>}</div></div><span>{u.country?countryName(u.country):'?'}</span><span className="user-money">{fmtMoney(u.balance_minor,u.balance_asset_code)}</span><span className="user-money">{fmtMoney(u.invested_minor,u.balance_asset_code)}</span><span className="user-money bonus-money">{fmtMoney(u.bonus_minor,u.balance_asset_code)}</span><span className="user-money">{fmtMoney(u.referral_minor,u.balance_asset_code)}</span><span className="user-money">{fmtMoney(u.portfolio_minor,u.balance_asset_code)}</span><span>{fmtDate(u.created_at)}</span><span className="table-status">{u.verification_status}</span><span><i className={`status-dot ${u.status==='active'?'':'gray'}`}/>{u.status}{u.role?' - '+u.role:''}</span><span className="row-actions"><button className="text-button" onClick={()=>startEdit(u)}><Pencil size={14}/> Update</button></span></>}</div>)}{!users.rows?.length&&!loading&&<div className="admin-empty-row">No users match the current filters.</div>}</div><div className="pagination"><span>Showing {userTotal?(userPage-1)*pageSize+1:0} to {(userPage-1)*pageSize+(users.rows?.length??0)} of {fmtCount(userTotal)} members</span><div><button disabled={userPage<=1||loading} onClick={()=>setUserPage(p=>p-1)}><ChevronLeft size={14}/> Previous</button><strong>{userPage} / {userTotalPages}</strong><button disabled={userPage>=userTotalPages||loading} onClick={()=>setUserPage(p=>p+1)}>Next <ChevronRight size={14}/></button></div></div></section>
     </>}
     {page==='Transactions'&&<section className="panel table-panel"><div className="table-toolbar"><div><h2>Transactions</h2><p>Provider references and status across the platform.</p></div><button className="outline-button" onClick={reload}><Download size={15}/> Refresh</button></div><div className="tabs admin-tabs">{['All','Deposits','Withdrawals','Pending','Completed','Failed','Reversed'].map(x=><button className={txFilter===x?'selected':''} onClick={()=>setTxFilter(x)} key={x}>{x}</button>)}</div><div className="admin-table"><div className="table-head"><span>Reference</span><span>User</span><span>Type</span><span>Amount</span><span>Date</span><span>Status</span><span/></div>{transactions.map(t=><div className="table-row" key={t.id}><b>{t.reference}</b><span>{t.user}</span><span>{t.type}</span><b>{fmtMoney(t.amount_minor,t.asset_code)}</b><span>{fmtDate(t.date)}</span><span className="table-status">{t.status}</span><button className="text-button" onClick={()=>modal(`Review ${t.reference}`)}>Review</button></div>)}{!transactions.length&&!loading&&<div className="admin-empty-row">No transactions recorded yet.</div>}</div></section>}
-    {page==='Investments'&&<section className="panel table-panel"><div className="table-toolbar"><div><h2>Investments</h2><p>All investment positions recorded on the platform.</p></div></div><div className="admin-table"><div className="table-head"><span>Investment</span><span>User</span><span>Plan</span><span>Amount</span><span>Date</span><span>Status</span></div>{investments.map(v=><div className="table-row" key={v.id}><b>{v.id.slice(0,8)}</b><span>{v.user}</span><span>{v.plan}{v.creation_source==='admin'&&<small>Admin-created</small>}{v.admin_funding_method==='no_wallet_debit'&&<small>No wallet debit</small>}</span><b>{fmtMoney(v.principal_minor,v.asset_code)}</b><span>{fmtDate(v.date)}</span><span className="table-status">{v.status}</span></div>)}{!investments.length&&!loading&&<div className="admin-empty-row">No investments recorded yet.</div>}</div></section>}
+    {page==='Investments'&&<section className="panel table-panel"><div className="table-toolbar"><div><h2>Investments</h2><p>{fmtCount(investmentTotal)} investment positions recorded. Cancellation preserves audit and payment history.</p></div></div><div className="admin-table"><div className="table-head"><span>Investment</span><span>User</span><span>Plan</span><span>Amount</span><span>Date</span><span>Status</span><span>Actions</span></div>{(investments.rows??[]).map((v:any)=><div className="table-row" key={v.id}><b>{v.id.slice(0,8)}</b><span>{v.user}</span><span>{v.plan}{v.creation_source==='admin'&&<small>Admin-created</small>}{v.admin_funding_method==='no_wallet_debit'&&<small>No wallet debit</small>}</span><b>{fmtMoney(v.principal_minor,v.asset_code)}</b><span>{fmtDate(v.date)}</span><span className="table-status">{v.status}</span><span className="admin-investment-row-actions">{['active','completed'].includes(v.status)&&<button className="text-button" onClick={()=>startInvestmentChange(v,'edit')}><Pencil size={13}/> Edit amount</button>}{['pending','active','completed'].includes(v.status)&&<button className="text-button admin-investment-cancel-link" onClick={()=>startInvestmentChange(v,'cancel')}>Cancel</button>}</span></div>)}{!investments.rows?.length&&!loading&&<div className="admin-empty-row">No investments recorded yet.</div>}</div><div className="pagination"><span>Showing {investmentTotal?(investmentPage-1)*investmentPageSize+1:0} to {(investmentPage-1)*investmentPageSize+(investments.rows?.length??0)} of {fmtCount(investmentTotal)} investments</span><div><button disabled={investmentPage<=1||loading} onClick={()=>setInvestmentPage(p=>p-1)}><ChevronLeft size={14}/> Previous</button><strong>{investmentPage} / {investmentTotalPages}</strong><button disabled={investmentPage>=investmentTotalPages||loading} onClick={()=>setInvestmentPage(p=>p+1)}>Next <ChevronRight size={14}/></button></div></div></section>}
     {page==='Referrals'&&<>
       <section className="panel create-user-panel">
         <div className="panel-heading"><div><h2>One-time manual commission</h2><p>Use this to correct a missed commission for an invitee with an activated member investment.</p></div></div>
