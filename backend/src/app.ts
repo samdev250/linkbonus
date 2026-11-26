@@ -647,14 +647,25 @@ app.get('/api/admin/investments', async (_req, res: SessionResponse) => {
 
 app.patch('/api/admin/investments/:id', async (req, res: SessionResponse) => {
   try {
-    const targetMinor = parseAmountMinor(req.body?.amount);
-    if (targetMinor === null) return res.status(400).json({ error: 'Enter a positive amount up to two decimal places' });
+    const targetMinor = parseAmountMinor(req.body?.amount, true);
+    if (targetMinor === null) return res.status(400).json({ error: 'Enter an amount of zero or greater with up to two decimal places' });
     const requestId = String(req.body?.request_id ?? '');
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidPattern.test(req.params.id)) return res.status(400).json({ error: 'Invalid investment identifier' });
     if (!uuidPattern.test(requestId)) return res.status(400).json({ error: 'Invalid investment update request identifier' });
-    const reason = String(req.body?.reason ?? '').trim() || 'Admin updated investment amount';
+    const reason = String(req.body?.reason ?? '').trim()
+      || (targetMinor === 0n ? 'Admin set investment amount to zero' : 'Admin updated investment amount');
     if (reason.length > 500) return res.status(400).json({ error: 'Audit note must be 500 characters or fewer' });
+
+    if (targetMinor === 0n) {
+      const { data, error } = await res.locals.db.rpc('admin_cancel_investment', {
+        p_investment_id: req.params.id,
+        p_reason: reason,
+        p_request_id: requestId.toLowerCase(),
+      });
+      if (error) return fail(res, error);
+      return res.json({ data });
+    }
 
     const { data, error } = await res.locals.db.rpc('admin_update_investment_amount', {
       p_investment_id: req.params.id,

@@ -104,6 +104,8 @@ export function AdminUserEditor({user,saving,token,plans,plansLoading,plansError
   const [investmentActionBusy,setInvestmentActionBusy]=useState(false);
   const investmentListRequest=useRef(0);
   const investmentTotalPages=Math.max(1,Math.ceil(userInvestments.total/investmentPageSize));
+  const zeroInvestmentAmount=investmentAction?.mode==='edit'&&investmentActionAmount.trim()!==''&&Number(investmentActionAmount)===0;
+  const investmentActionCancelling=investmentAction?.mode==='cancel'||zeroInvestmentAmount;
   const availablePlans=plans.filter(plan=>plan.active&&(!plan.country_code||plan.country_code.toUpperCase()===String(user.country||'').toUpperCase()));
   const selectedPlan=availablePlans.find(plan=>plan.id===investmentPlanId);
   const currencyChanged=assetForCountry(values.country)!==user.balance_asset_code;
@@ -216,12 +218,13 @@ export function AdminUserEditor({user,saving,token,plans,plansLoading,plansError
     setInvestmentActionError('');
     try{
       const path=`/admin/investments/${investmentAction.id}`;
-      if(investmentAction.mode==='edit'){
-        await request(path,{method:'PATCH',body:JSON.stringify({amount:investmentActionAmount,reason:investmentActionReason,request_id:investmentActionRequestId})});
-      }else{
+      const cancelling=investmentAction.mode==='cancel'||zeroInvestmentAmount;
+      if(cancelling){
         await request(path,{method:'DELETE',body:JSON.stringify({reason:investmentActionReason,request_id:investmentActionRequestId})});
+      }else{
+        await request(path,{method:'PATCH',body:JSON.stringify({amount:investmentActionAmount,reason:investmentActionReason,request_id:investmentActionRequestId})});
       }
-      const message=investmentAction.mode==='edit'?'Investment amount updated':'Investment cancelled; history retained';
+      const message=cancelling?'Investment cancelled; history retained':'Investment amount updated';
       setInvestmentAction(null);
       setInvestmentActionRequestId('');
       await loadUserInvestments();
@@ -296,7 +299,7 @@ export function AdminUserEditor({user,saving,token,plans,plansLoading,plansError
             {investmentAction?.id===investment.id
               ?<form className="admin-user-investment-action-form" onSubmit={submitInvestmentAction}>
                 {investmentAction.mode==='edit'
-                  ?<label><span>New amount ({investment.asset_code})</span><input required type="number" min="0.01" step="0.01" value={investmentActionAmount} onChange={event=>setInvestmentActionAmount(event.target.value)}/></label>
+                  ?<><label><span>New amount ({investment.asset_code})</span><input required type="number" min="0" step="0.01" value={investmentActionAmount} onChange={event=>setInvestmentActionAmount(event.target.value)}/></label>{zeroInvestmentAmount&&<p className="admin-user-editor-note">Zero cancels the investment, stops future returns, and removes it from the active portfolio. Any verified wallet-funded amount is handled through the ledger.</p>}</>
                   :<p className="admin-user-editor-note">{investment.status==='pending'
                     ?'The pending investment and payment proof will be cancelled; no wallet refund is issued.'
                     :(investment.creation_source==='admin'&&investment.admin_funding_method==='no_wallet_debit'
@@ -306,7 +309,7 @@ export function AdminUserEditor({user,saving,token,plans,plansLoading,plansError
                 {investmentActionError&&<div className="admin-user-editor-error" role="alert">{investmentActionError}</div>}
                 <div className="admin-user-investment-actions">
                   <button type="button" className="outline-button" disabled={investmentActionBusy} onClick={()=>{setInvestmentAction(null);setInvestmentActionError('')}}>Keep investment</button>
-                  <button type="submit" className={investmentAction.mode==='cancel'?'admin-investment-danger':'primary'} disabled={investmentActionBusy||saving}>{investmentActionBusy?'Saving…':investmentAction.mode==='edit'?'Save amount':'Cancel investment'}</button>
+                  <button type="submit" className={investmentActionCancelling?'admin-investment-danger':'primary'} disabled={investmentActionBusy||saving}>{investmentActionBusy?(investmentActionCancelling?'Cancelling…':'Saving…'):investmentActionCancelling?'Cancel investment':'Save amount'}</button>
                 </div>
               </form>
               :<div className="admin-user-investment-actions">

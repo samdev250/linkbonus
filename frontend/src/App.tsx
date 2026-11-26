@@ -141,11 +141,13 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
   const startInvestmentChange=(investment:any,mode:'edit'|'cancel')=>{setInvestmentChange(investment);setInvestmentChangeMode(mode);setInvestmentChangeAmount(investment.amount);setInvestmentChangeReason('');setInvestmentChangeRequestId(crypto.randomUUID());setInvestmentChangeError('')};
   const closeInvestmentChange=()=>{if(investmentChangeBusy)return;setInvestmentChange(null);setInvestmentChangeMode(null);setInvestmentChangeRequestId('');setInvestmentChangeError('')};
   const submitInvestmentChange=async(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!investmentChange||!investmentChangeMode)return;setInvestmentChangeBusy(true);setInvestmentChangeError('');try{
-    const result=investmentChangeMode==='edit'
-      ?await api(`/admin/investments/${investmentChange.id}`,{method:'PATCH',body:JSON.stringify({amount:investmentChangeAmount,reason:investmentChangeReason,request_id:investmentChangeRequestId})})
-      :await api(`/admin/investments/${investmentChange.id}`,{method:'DELETE',body:JSON.stringify({reason:investmentChangeReason,request_id:investmentChangeRequestId})});
+    const zeroAmountCancellation=investmentChangeMode==='edit'&&investmentChangeAmount.trim()!==''&&Number(investmentChangeAmount)===0;
+    const cancelling=investmentChangeMode==='cancel'||zeroAmountCancellation;
+    const result=cancelling
+      ?await api(`/admin/investments/${investmentChange.id}`,{method:'DELETE',body:JSON.stringify({reason:investmentChangeReason,request_id:investmentChangeRequestId})})
+      :await api(`/admin/investments/${investmentChange.id}`,{method:'PATCH',body:JSON.stringify({amount:investmentChangeAmount,reason:investmentChangeReason,request_id:investmentChangeRequestId})});
     setInvestmentChange(null);setInvestmentChangeMode(null);setInvestmentChangeRequestId('');reload();
-    if(investmentChangeMode==='edit'){const adjustment=BigInt(String(result.wallet_adjustment_minor??0));toast(adjustment===0n?'Investment amount updated · wallet unchanged':`Investment amount updated · wallet adjustment ${fmtMoney(adjustment,result.asset_code)}`)}
+    if(!cancelling){const adjustment=BigInt(String(result.wallet_adjustment_minor??0));toast(adjustment===0n?'Investment amount updated · wallet unchanged':`Investment amount updated · wallet adjustment ${fmtMoney(adjustment,result.asset_code)}`)}
     else{const refund=BigInt(String(result.refund_minor??0));toast(refund>0n?`Investment cancelled · refunded ${fmtMoney(refund,result.asset_code)}`:'Investment cancelled · financial history retained')}
   }catch(e){setInvestmentChangeError(e instanceof Error?e.message:'Could not update investment')}finally{setInvestmentChangeBusy(false)}};
   const createUser=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{await api('/admin/users',{method:'POST',body:JSON.stringify(newUser)});setCreating(false);setNewUser({email:'',password:'',full_name:'',country:''});reload()}catch(e){setError(e instanceof Error?e.message:'Could not create user')}finally{setBusy(false)}};
@@ -159,30 +161,34 @@ function Admin({page,setPage,modal,search,setSearch,token,toast}:any){
     {label:'Bonuses sent',value:fmtCurrencyTotals(overview?.bonuses_by_asset),hint:`${fmtCount(overview?.bonus_credits_sent)} completed credits · grouped by currency`,icon:Coins,tone:'indigo'},
     {label:'Referral commissions',value:fmtCurrencyTotals(overview?.referrals_by_asset),hint:'Credited to date · grouped by currency',icon:Gift,tone:'cyan'},
   ];
+  const zeroInvestmentAmount=investmentChangeMode==='edit'&&investmentChangeAmount.trim()!==''&&Number(investmentChangeAmount)===0;
+  const investmentChangeCancelling=investmentChangeMode==='cancel'||zeroInvestmentAmount;
   return <>
     {investmentChange&&investmentChangeMode&&<div className="admin-investment-modal-backdrop" onClick={closeInvestmentChange}>
       <section className="admin-investment-modal" role="dialog" aria-modal="true" aria-labelledby="admin-investment-modal-title" onClick={event=>event.stopPropagation()}>
         <header className="admin-investment-modal-header">
-          <div><span className="eyebrow">ADMINISTRATION</span><h2 id="admin-investment-modal-title">{investmentChangeMode==='edit'?'Edit investment amount':'Cancel investment'}</h2><p>{investmentChange.user} · {investmentChange.plan}</p></div>
+          <div><span className="eyebrow">ADMINISTRATION</span><h2 id="admin-investment-modal-title">{investmentChangeCancelling?'Cancel investment':'Edit investment amount'}</h2><p>{investmentChange.user} · {investmentChange.plan}</p></div>
           <button type="button" className="icon-button" aria-label="Close dialog" disabled={investmentChangeBusy} onClick={closeInvestmentChange}><X size={17}/></button>
         </header>
         <div className="admin-investment-modal-summary"><span>Current amount</span><b>{fmtMoney(investmentChange.principal_minor,investmentChange.asset_code)}</b><span>Status</span><b className="table-status">{investmentChange.status}</b></div>
         <p className="admin-investment-modal-note">{investmentChangeMode==='edit'
-          ?(investmentChange.creation_source==='admin'&&investmentChange.admin_funding_method==='no_wallet_debit'
+          ?(zeroInvestmentAmount
+            ?'Setting the amount to zero cancels the investment, stops future returns and removes it from the active portfolio. Only verified wallet-funded principal is refunded; previous returns remain recorded.'
+            :investmentChange.creation_source==='admin'&&investmentChange.admin_funding_method==='no_wallet_debit'
             ?'This admin-created investment did not debit the wallet. Changing its amount will not change the wallet balance; future returns use the updated amount. Previously credited returns are retained.'
-            :'The wallet will be debited for an increase or credited for a decrease. The original investment debit must be verified; future returns use the updated amount and previously credited returns are retained.')
+            :'Admin increases do not debit the member wallet. Reductions refund only verified wallet-funded principal; future returns use the updated amount and previously credited returns are retained.')
           :(investmentChange.status==='pending'
             ?'The investment and any pending payment proof will be cancelled. No wallet refund is issued.'
             :(investmentChange.creation_source==='admin'&&investmentChange.admin_funding_method==='no_wallet_debit'
               ?'This investment will stop earning future returns. It was created without a wallet debit, so no refund will be issued. Previously credited returns are retained.'
               :'This investment will stop earning future returns. The verified original principal will be credited back to the wallet. Previously credited returns are retained.'))}</p>
         <form className="admin-investment-modal-form" onSubmit={submitInvestmentChange}>
-          {investmentChangeMode==='edit'&&<label><span>New amount ({investmentChange.asset_code})</span><input required type="number" min="0.01" step="0.01" value={investmentChangeAmount} onChange={event=>setInvestmentChangeAmount(event.target.value)}/></label>}
+          {investmentChangeMode==='edit'&&<label><span>New amount ({investmentChange.asset_code})</span><input required type="number" min="0" step="0.01" value={investmentChangeAmount} onChange={event=>setInvestmentChangeAmount(event.target.value)}/></label>}
           <label><span>Audit note (optional)</span><input maxLength={500} value={investmentChangeReason} onChange={event=>setInvestmentChangeReason(event.target.value)} placeholder="Optional note; admin and action are recorded automatically"/></label>
           {investmentChangeError&&<div className="admin-user-editor-error" role="alert">{investmentChangeError}</div>}
           <div className="admin-investment-modal-actions">
             <button type="button" className="outline-button" disabled={investmentChangeBusy} onClick={closeInvestmentChange}>Keep investment</button>
-            <button type="submit" className={investmentChangeMode==='cancel'?'admin-investment-danger':'primary'} disabled={investmentChangeBusy}>{investmentChangeBusy?(investmentChangeMode==='edit'?'Updating…':'Cancelling…'):(investmentChangeMode==='edit'?'Save amount':'Cancel investment')}</button>
+            <button type="submit" className={investmentChangeCancelling?'admin-investment-danger':'primary'} disabled={investmentChangeBusy}>{investmentChangeBusy?(investmentChangeCancelling?'Cancelling…':'Updating…'):investmentChangeCancelling?'Cancel investment':'Save amount'}</button>
           </div>
         </form>
       </section>
